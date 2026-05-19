@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   MapPin, 
   Bike, 
@@ -28,6 +28,22 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+
+  // Registration of Service Worker for PWA
+  useEffect(() => {
+    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(
+          (registration) => {
+            console.log('Service Worker enregistré avec succès: ', registration.scope);
+          },
+          (err) => {
+            console.log('Échec de l\'enregistrement du Service Worker: ', err);
+          }
+        );
+      });
+    }
+  }, []);
 
   // Nettoyage et formatage du numéro pour WhatsApp (+221)
   const formatPhone = (phone: string) => {

@@ -18,7 +18,8 @@ import {
   Smartphone,
   X,
   Compass,
-  Map as MapIcon
+  Map as MapIcon,
+  Languages
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from './lib/firebase';
@@ -31,14 +32,17 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { TrackingMap } from './components/TrackingMap';
+import { translations, Language } from './translations';
 
-const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
+const TrackingView = ({ deliveryId, language }: { deliveryId: string; language: Language }) => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isDriver, setIsDriver] = useState(false);
   const [eta, setEta] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+
+  const t = translations[language];
 
   useEffect(() => {
     if (!deliveryId) return;
@@ -48,11 +52,11 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
         setData(docSnap.data());
         setLoading(false);
       } else {
-        setError('Livraison introuvable');
+        setError(t.deliveryNotFound);
         setLoading(false);
       }
     }, (err) => {
-      setError('Erreur de connexion : ' + err.message);
+      setError(t.errorConnection + ' : ' + err.message);
       setLoading(false);
     });
 
@@ -85,7 +89,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
   if (loading) return (
     <div className="w-full max-w-md bg-white rounded-3xl p-12 text-center shadow-xl border border-slate-100 italic font-medium text-slate-400">
       <Clock className="animate-spin mx-auto mb-4 text-emerald-500" size={32} />
-      Chargement du suivi ALGS...
+      {t.loadingTracking}
     </div>
   );
   
@@ -93,7 +97,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
     <div className="w-full max-w-md bg-white rounded-3xl p-12 text-center shadow-xl border border-slate-100">
       <CircleAlert className="mx-auto mb-4 text-red-500" size={32} />
       <p className="text-red-500 font-bold">{error}</p>
-      <button onClick={() => window.location.hash = '#/'} className="mt-4 text-xs font-black uppercase tracking-widest text-slate-400 underline">Retour</button>
+      <button onClick={() => window.location.hash = '#/'} className="mt-4 text-xs font-black uppercase tracking-widest text-slate-400 underline">{t.back}</button>
     </div>
   );
 
@@ -105,7 +109,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
     >
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-lg font-black text-slate-900">Suivi ALGS</h2>
+          <h2 className="text-lg font-black text-slate-900">{t.trackingTitle}</h2>
           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">ID: {deliveryId.slice(0, 8)}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -114,14 +118,14 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
             data.status === 'pending' ? 'bg-orange-100 text-orange-600' :
             'bg-slate-100 text-slate-500'
           }`}>
-            {data.status === 'en_route' ? 'En livraison' : 
-             data.status === 'pending' ? 'En attente' :
+            {data.status === 'en_route' ? t.statusEnRoute : 
+             data.status === 'pending' ? t.statusPending :
              data.status}
           </div>
           {eta && (
             <div className="flex items-center gap-1.5 text-orange-600 font-black text-[10px] uppercase tracking-wider bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-100">
               <Clock size={10} />
-              Arrivée : {eta}
+              {t.etaArrival} : {eta}
             </div>
           )}
         </div>
@@ -141,8 +145,8 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
             <MapPin size={20} />
           </div>
           <div className="text-left">
-            <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">Destination</p>
-            <p className="text-sm font-bold text-slate-800 leading-tight mt-1">{data.addressDetails || 'Position partagée par GPS'}</p>
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">{t.destination}</p>
+            <p className="text-sm font-bold text-slate-800 leading-tight mt-1">{data.addressDetails || t.sharedByGps}</p>
           </div>
         </div>
 
@@ -153,12 +157,12 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
                 <Bike size={20} />
               </div>
               <div className="text-left">
-                <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">Temps d'arrivée estimé</p>
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">{t.etaEstimated}</p>
                 <p className="text-base font-black text-orange-600 leading-tight mt-0.5">{eta}</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[8px] font-black uppercase text-slate-300">Basé sur le trafic</p>
+              <p className="text-[8px] font-black uppercase text-slate-300">{t.etaBasedOnTraffic}</p>
             </div>
           </div>
         )}
@@ -170,7 +174,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
           >
             <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <Bike size={16} className="relative z-10 transition-transform group-hover:-rotate-12" />
-            <span className="relative z-10">Je suis le livreur</span>
+            <span className="relative z-10">{t.iAmDriver}</span>
           </button>
         ) : (
           <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 flex items-center gap-3 shadow-inner">
@@ -178,7 +182,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
               <Compass size={16} className="animate-spin-slow" />
             </div>
             <p className="text-xs font-bold text-orange-900 leading-tight">
-              Tracking actif. Votre position est partagée avec le client en temps réel.
+              {t.trackingActive}
             </p>
           </div>
         )}
@@ -200,9 +204,9 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
                 <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 mx-auto mb-6">
                   <Navigation size={32} />
                 </div>
-                <h3 className="text-xl font-black text-slate-900 mb-2">Activer le suivi ?</h3>
+                <h3 className="text-xl font-black text-slate-900 mb-2">{t.activateTrackingTitle}</h3>
                 <p className="text-sm text-slate-500 mb-8 leading-relaxed">
-                  En acceptant, votre position GPS sera partagée en direct avec le client pour faciliter la livraison.
+                  {t.activateTrackingDesc}
                 </p>
                 <div className="space-y-3">
                   <button 
@@ -217,13 +221,13 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
                     }}
                     className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200"
                   >
-                    Démarrer le trajet
+                    {t.startTrip}
                   </button>
                   <button 
                     onClick={() => setShowConfirmation(false)}
                     className="w-full py-3 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-400"
                   >
-                    Plus tard
+                    {t.later}
                   </button>
                 </div>
               </motion.div>
@@ -236,13 +240,20 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
         onClick={() => window.location.hash = '#/'}
         className="mt-6 w-full py-3 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors"
       >
-        Quitter le suivi
+        {t.exitTracking}
       </button>
     </motion.div>
   );
 };
 
 export default function App() {
+  const [language, setLanguage] = useState<Language>('fr');
+  const t = translations[language];
+
+  const toggleLanguage = () => {
+    setLanguage(prev => prev === 'fr' ? 'en' : 'fr');
+  };
+
   // 'client' = Le client partage sa position, 'driver' = Le livreur demande la position
   const [activeTab, setActiveTab] = useState<'client' | 'driver'>('client'); 
   
@@ -383,12 +394,12 @@ export default function App() {
     setSuccess(false);
     
     if (!clientPhone || !driverPhone) {
-      setError('Veuillez remplir les numéros de téléphone.');
+      setError(t.errorPhoneRequired);
       return;
     }
 
     if (!navigator.geolocation) {
-      setError("La géolocalisation n'est pas supportée par ce téléphone.");
+      setError(t.errorGeoNotSupported);
       return;
     }
 
@@ -433,14 +444,7 @@ export default function App() {
         const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
         const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
         
-        let message = `Bonjour, voici ma position exacte pour la livraison ALGS :\n\n`;
-        message += `📍 Suivi ALGS en direct : ${trackingLink}\n`;
-        message += `🏍️ Cliquez ici pour lancer l'itinéraire : ${googleMapsLink}\n\n`;
-        
-        if (addressDetails.trim() !== '') {
-          message += `🏠 Repère : ${addressDetails}\n`;
-        }
-        message += `📞 Client : +221${clientPhone.replace(/\s+/g, '')}`;
+        const message = t.whatsappMessage(trackingLink, googleMapsLink, addressDetails, clientPhone);
 
         // Utilisation de location.href pour éviter le blocage des popups sur mobile comme conseillé
         window.location.href = `https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`;
@@ -451,7 +455,7 @@ export default function App() {
       } catch (err: any) {
         setLoading(false);
         setGpsStatus('idle');
-        setError("Erreur : " + err.message);
+        setError(t.errorConnection + " : " + err.message);
       }
     };
 
@@ -475,11 +479,11 @@ export default function App() {
           setLoading(false);
           setGpsStatus('idle');
           if (err.code === 1) {
-            setError("Permission refusée. Veuillez autoriser l'accès au GPS dans les réglages de votre navigateur.");
+            setError(t.errorGpsPermission);
           } else if (err.code === 3) {
-            setError("Délai GPS expiré. Veuillez vous mettre à découvert ou vérifier votre connexion.");
+            setError(t.errorGpsTimeout);
           } else {
-            setError("Impossible de capter votre GPS. Vérifiez que la localisation est activée sur votre téléphone.");
+            setError(t.errorGpsGeneral);
           }
           console.error("Erreur GPS :", err);
           if (watchId) navigator.geolocation.clearWatch(watchId);
@@ -502,7 +506,7 @@ export default function App() {
     setSuccess(false);
     
     if (!clientPhone) {
-      setError('Veuillez renseigner le numéro du client.');
+      setError(t.errorClientPhoneRequired);
       return;
     }
 
@@ -510,7 +514,7 @@ export default function App() {
     // Lien de l'appli en production où le client pourra cliquer
     const appUrl = window.location.origin; 
     
-    const message = `Bonjour, c'est votre livreur ALGS. 🏍️\nPourriez-vous cliquer sur le lien ci-dessous pour me partager votre position exacte en 1 clic et faciliter votre livraison ?\n\n👉 Cliquez ici : ${appUrl}`;
+    const message = t.driverRequestMessage(appUrl);
 
     window.open(`https://wa.me/${formattedClient}?text=${encodeURIComponent(message)}`, '_blank');
     setSuccess(true);
@@ -523,13 +527,13 @@ export default function App() {
       return (
         <div className="w-full max-w-md bg-white rounded-3xl p-8 text-center">
           <CircleAlert className="mx-auto text-red-500 mb-4" size={48} />
-          <h2 className="text-xl font-black mb-2">ID de livraison manquant</h2>
-          <button onClick={() => window.location.hash = '#/'} className="text-emerald-500 font-bold">Retour</button>
+          <h2 className="text-xl font-black mb-2">{t.missingDeliveryId}</h2>
+          <button onClick={() => window.location.hash = '#/'} className="text-emerald-500 font-bold">{t.back}</button>
         </div>
       );
     }
 
-    return <TrackingView deliveryId={deliveryId} />;
+    return <TrackingView deliveryId={deliveryId} language={language} />;
   };
 
   const renderHome = () => (
@@ -547,14 +551,14 @@ export default function App() {
           className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold rounded-xl transition-all z-10 ${activeTab === 'client' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
           <User size={14} />
-          Espace Client
+          {t.clientSpace}
         </button>
         <button 
           onClick={() => { setActiveTab('driver'); setError(''); setSuccess(false); }}
           className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold rounded-xl transition-all z-10 ${activeTab === 'driver' ? 'bg-white text-[#FF7A00] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
           <Bike size={16} />
-          Espace Livreur
+          {t.driverSpace}
         </button>
       </div>
 
@@ -596,14 +600,14 @@ export default function App() {
                 className="flex items-center gap-2.5"
               >
                 <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
-                Votre position a été envoyée avec succès !
+                {t.successMessage}
               </motion.div>
               <button 
                 onClick={resetForm}
                 className="text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-800 transition-colors"
                 id="reset-form-btn-top"
               >
-                Réinitialiser
+                {t.reset}
               </button>
             </div>
           </motion.div>
@@ -622,7 +626,7 @@ export default function App() {
             >
               <div className="space-y-2">
                 <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                  <Phone size={12} /> Mon Numéro WhatsApp
+                  <Phone size={12} /> {t.myWhatsApp}
                 </label>
                 <div className="relative group">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
@@ -638,7 +642,7 @@ export default function App() {
 
               <div className="space-y-2">
                 <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                  <Bike size={12} /> Numéro du Livreur
+                  <Bike size={12} /> {t.driverNumber}
                 </label>
                 <div className="relative group">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
@@ -654,10 +658,10 @@ export default function App() {
 
               <div className="space-y-2">
                 <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                  <MapPin size={12} /> Complément d'adresse
+                  <MapPin size={12} /> {t.addressDetails}
                 </label>
                 <textarea 
-                  placeholder="Ex: Près de la mosquée, devant le portail gris..." 
+                  placeholder={t.addressPlaceholder} 
                   rows={2} 
                   value={addressDetails} 
                   onChange={(e) => setAddressDetails(e.target.value)} 
@@ -669,7 +673,7 @@ export default function App() {
                 whileTap={{ scale: 0.98 }}
                 onClick={() => {
                   if (!clientPhone || !driverPhone) {
-                    setError('Veuillez remplir les numéros de téléphone.');
+                    setError(t.errorPhoneRequired);
                     return;
                   }
                   setShowPreShareConfirm(true);
@@ -681,12 +685,12 @@ export default function App() {
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <Clock size={16} className="animate-spin" />
-                    En cours...
+                    ...
                   </span>
                 ) : (
                   <>
                     <Share2 size={18} />
-                    Partager ma position
+                    {t.shareLocation}
                   </>
                 )}
               </motion.button>
@@ -703,9 +707,9 @@ export default function App() {
                 <div className="flex gap-3">
                   <Clock className="text-orange-500 shrink-0 mt-0.5" size={16} />
                   <div className="space-y-1">
-                    <p className="text-xs font-bold text-orange-950">Astuce Livreur</p>
+                    <p className="text-xs font-bold text-orange-950">{t.driverTip}</p>
                     <p className="text-[11px] text-orange-800 leading-relaxed font-medium">
-                      Entrez le numéro du client ci-dessous. Nous préparerons un message WhatsApp avec le lien direct vers cette application pour qu'il puisse vous envoyer sa position exacte.
+                      {t.driverTipText}
                     </p>
                   </div>
                 </div>
@@ -713,7 +717,7 @@ export default function App() {
 
               <div className="space-y-2">
                 <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                  <User size={12} /> Numéro WhatsApp du Client
+                  <User size={12} /> {t.clientWhatsApp}
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
@@ -739,7 +743,7 @@ export default function App() {
             className="w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-[#FF7A00] border-2 border-orange-100 bg-orange-50/30 flex items-center justify-center gap-3 transition-all"
           >
             <Clock size={18} />
-            Nouvelle opération
+            {t.newOperation}
           </motion.button>
         ) : (
           <motion.button
@@ -747,7 +751,7 @@ export default function App() {
             onClick={() => {
               if (activeTab === 'client') {
                 if (!clientPhone || !driverPhone) {
-                  setError('Veuillez remplir les numéros de téléphone.');
+                  setError(t.errorPhoneRequired);
                   return;
                 }
                 setShowPreShareConfirm(true);
@@ -771,24 +775,24 @@ export default function App() {
                   >
                     <Clock size={20} />
                   </motion.div>
-                  <span>{gpsStatus === 'searching' ? 'Recherche Satellite...' : 'Précision GPS...'}</span>
+                  <span>{gpsStatus === 'searching' ? t.searchingGps : t.stabilizingGps}</span>
                   {gpsAccuracy !== null && (
                     <span className="bg-white/20 px-2 py-0.5 rounded-md text-[10px] font-mono">
                       {gpsAccuracy}m
                     </span>
                   )}
                 </div>
-                <p className="text-[8px] opacity-70 normal-case tracking-normal font-medium">Capture haute précision en cours</p>
+                <p className="text-[8px] opacity-70 normal-case tracking-normal font-medium">{t.highPrecision}</p>
               </div>
             ) : activeTab === 'client' ? (
               <>
                 <Share2 size={18} />
-                Partager ma position
+                {t.shareLocation}
               </>
             ) : (
               <>
                 <Send size={18} />
-                Demander la position
+                {t.requestLocation}
               </>
             )}
           </motion.button>
@@ -803,20 +807,20 @@ export default function App() {
       animate={{ opacity: 1, y: 0 }}
       className="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/60 p-8 border border-slate-100"
     >
-      <h2 className="text-2xl font-black text-slate-950 mb-6">À propos d'ALGS</h2>
+      <h2 className="text-2xl font-black text-slate-950 mb-6">{t.aboutTitle}</h2>
       <div className="space-y-4 text-sm text-slate-600 leading-relaxed">
         <p>
-          ALGS (Alioune Livraison Gestion Service) est née d'un constat simple : il est souvent difficile de trouver une adresse exacte au Sénégal.
+          {t.aboutDesc1}
         </p>
         <p>
-          Notre mission est de simplifier la rencontre entre les livreurs et les clients grâce à la puissance de la géolocalisation précise, sans avoir à s'échanger des appels interminables pour expliquer son chemin.
+          {t.aboutDesc2}
         </p>
         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mt-6">
-          <p className="text-[11px] font-black uppercase text-slate-400 mb-2 tracking-widest">Nos Valeurs</p>
+          <p className="text-[11px] font-black uppercase text-slate-400 mb-2 tracking-widest">{t.values}</p>
           <ul className="space-y-2 font-bold text-slate-800">
-            <li className="flex items-center gap-2 italic">🚀 Rapidité</li>
-            <li className="flex items-center gap-2 italic">📍 Précision</li>
-            <li className="flex items-center gap-2 italic">🇸🇳 Innovation locale</li>
+            <li className="flex items-center gap-2 italic">🚀 {t.value1}</li>
+            <li className="flex items-center gap-2 italic">📍 {t.value2}</li>
+            <li className="flex items-center gap-2 italic">🇸🇳 {t.value3}</li>
           </ul>
         </div>
       </div>
@@ -824,7 +828,7 @@ export default function App() {
         onClick={() => { window.location.hash = '#/'; }}
         className="mt-8 w-full py-4 text-xs font-black uppercase tracking-widest text-[#FF7A00] border-2 border-orange-50 rounded-2xl hover:bg-orange-50 transition-colors"
       >
-        Retour à l'accueil
+        {t.backHome}
       </button>
     </motion.div>
   );
@@ -838,8 +842,8 @@ export default function App() {
       <div className="w-16 h-16 bg-orange-100 rounded-3xl flex items-center justify-center text-[#FF7A00] mx-auto mb-6">
         <Phone size={32} />
       </div>
-      <h2 className="text-2xl font-black text-slate-950 mb-2">Contactez-nous</h2>
-      <p className="text-sm text-slate-500 mb-8 px-4">Besoin d'aide ou d'un partenariat ? Notre équipe est à votre écoute.</p>
+      <h2 className="text-2xl font-black text-slate-950 mb-2">{t.contactTitle}</h2>
+      <p className="text-sm text-slate-500 mb-8 px-4">{t.contactDesc}</p>
       
       <div className="space-y-3">
         <a 
@@ -847,7 +851,7 @@ export default function App() {
           className="flex items-center justify-between p-4 bg-emerald-50 rounded-2xl border border-emerald-100 group hover:border-emerald-300 transition-all"
         >
           <div className="flex flex-col items-start">
-            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">WhatsApp Support</span>
+            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{t.whatsAppSupport}</span>
             <span className="text-sm font-bold text-slate-800">+221 77 ... .. ..</span>
           </div>
           <Send size={18} className="text-emerald-500 group-hover:translate-x-1 transition-transform" />
@@ -855,7 +859,7 @@ export default function App() {
         
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
           <div className="flex flex-col items-start">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.email}</span>
             <span className="text-sm font-bold text-slate-800">contact@algs.sn</span>
           </div>
           <X size={18} className="text-slate-300" />
@@ -866,7 +870,7 @@ export default function App() {
         onClick={() => { window.location.hash = '#/'; }}
         className="mt-8 w-full py-4 text-xs font-black uppercase tracking-widest text-[#FF7A00] border-2 border-orange-50 rounded-2xl hover:bg-orange-50 transition-colors"
       >
-        Retour à l'accueil
+        {t.backHome}
       </button>
     </motion.div>
   );
@@ -891,9 +895,9 @@ export default function App() {
               <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mx-auto mb-6">
                 <MapPin size={32} />
               </div>
-              <h3 className="text-xl font-black text-slate-900 mb-2">Partager ma position ?</h3>
+              <h3 className="text-xl font-black text-slate-900 mb-2">{t.confirmShareTitle}</h3>
               <p className="text-sm text-slate-500 mb-8 leading-relaxed">
-                ALGS va récupérer votre position GPS actuelle pour l'envoyer au livreur via WhatsApp. C'est sécurisé et permet une livraison plus rapide.
+                {t.confirmShareDesc}
               </p>
               <div className="space-y-3">
                 <button 
@@ -903,13 +907,13 @@ export default function App() {
                   }}
                   className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-100"
                 >
-                  Confirmer et Partager
+                  {t.confirmButton}
                 </button>
                 <button 
                   onClick={() => setShowPreShareConfirm(false)}
                   className="w-full py-3 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-400"
                 >
-                  Annuler
+                  {t.cancel}
                 </button>
               </div>
             </motion.div>
@@ -929,8 +933,8 @@ export default function App() {
               <CheckCircle2 size={16} />
             </div>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-emerald-100">Succès</p>
-              <p className="text-xs font-bold text-white">Votre position a été envoyée !</p>
+              <p className="text-[11px] font-black uppercase tracking-wider text-emerald-100 text-left">Succès</p>
+              <p className="text-xs font-bold text-white">{t.successMessage}</p>
             </div>
           </motion.div>
         )}
@@ -949,15 +953,15 @@ export default function App() {
                 <Clock size={16} />
               </div>
               <div>
-                <p className="text-[11px] font-black uppercase tracking-wider text-emerald-400">Mise à jour</p>
-                <p className="text-xs font-bold">Nouvelle version disponible</p>
+                <p className="text-[11px] font-black uppercase tracking-wider text-emerald-400 text-left">{t.updateAvailable}</p>
+                <p className="text-xs font-bold">{t.updateAvailableDesc}</p>
               </div>
             </div>
             <button 
               onClick={() => window.location.reload()}
               className="bg-emerald-500 text-white px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
             >
-              Actualiser
+              {t.refresh}
             </button>
           </motion.div>
         )}
@@ -978,8 +982,8 @@ export default function App() {
                   <Smartphone size={22} />
                 </div>
                 <div className="flex flex-col">
-                  <p className="text-[11px] font-black uppercase text-emerald-600 tracking-wider">Installer ALGS</p>
-                  <p className="text-xs font-bold text-slate-700">Accès rapide comme une application</p>
+                  <p className="text-[11px] font-black uppercase text-emerald-600 tracking-wider text-left">{t.pwaInstallTitle}</p>
+                  <p className="text-xs font-bold text-slate-700">{t.pwaInstallDesc}</p>
                 </div>
               </div>
               <button 
@@ -994,7 +998,7 @@ export default function App() {
             {platform === 'ios' ? (
               <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
                 <p className="text-[10px] text-emerald-800 font-bold leading-tight">
-                  Pour installer : Appuyez sur <Share2 size={12} className="inline mx-0.5" /> puis sur <span className="underline">"Sur l'écran d'accueil"</span>
+                  {t.pwaInstallIOS}
                 </p>
               </div>
             ) : (
@@ -1002,7 +1006,7 @@ export default function App() {
                 onClick={handleInstallClick}
                 className="w-full bg-emerald-500 text-white text-xs font-black uppercase tracking-widest py-3.5 rounded-xl active:scale-[0.98] transition-all shadow-lg shadow-emerald-200"
               >
-                Ajouter à l'écran d'accueil
+                {t.pwaInstallBtn}
               </button>
             )}
           </motion.div>
@@ -1010,23 +1014,41 @@ export default function App() {
       </AnimatePresence>
 
       {/* Header */}
-      <div className="w-full max-w-md text-center py-8">
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center"
-          onClick={() => { window.location.hash = '#/'; }}
-          style={{ cursor: 'pointer' }}
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-4xl font-black tracking-tighter text-slate-950">
-              AL<span className="text-[#FF7A00]">G</span>S
+      <div className="w-full max-w-md py-8">
+        <div className="flex items-center justify-between mb-2">
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-start"
+            onClick={() => { window.location.hash = '#/'; }}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-4xl font-black tracking-tighter text-slate-950">
+                AL<span className="text-[#FF7A00]">G</span>S
+              </span>
+            </div>
+          </motion.div>
+
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={toggleLanguage}
+            className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-2xl shadow-sm hover:bg-slate-50 transition-colors group"
+          >
+            <Languages size={16} className="text-slate-400 group-hover:text-slate-600 transition-colors" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+              {language === 'fr' ? 'English' : 'Français'}
             </span>
-          </div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mt-2">
-            La livraison précise au Sénégal
-          </p>
-        </motion.div>
+          </motion.button>
+        </div>
+        
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold"
+        >
+          {t.slogan}
+        </motion.p>
       </div>
 
       {/* Main Content Router */}
@@ -1043,8 +1065,6 @@ export default function App() {
       </AnimatePresence>
 
       {/* Trust Badge */}
-
-      {/* Trust Badge */}
       <div className="mt-8 flex items-center gap-2 px-6 py-2 bg-slate-200/40 rounded-full">
         <Navigation size={12} className="text-slate-400" />
         <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">
@@ -1056,21 +1076,21 @@ export default function App() {
       <footer className="w-full max-w-md mt-auto py-6">
         <div className="flex flex-col items-center gap-1">
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-            ALGS © 2026 • Livraison Intelligente
+            ALGS © 2026 • {t.smartDelivery}
           </p>
           <div className="flex items-center gap-4 mt-2">
             <a 
               href="#/about" 
               className={`text-[9px] font-bold transition-colors uppercase ${currentHash === '#/about' ? 'text-slate-950 underline underline-offset-4' : 'text-slate-300 hover:text-slate-500'}`}
             >
-              À propos
+              {t.about}
             </a>
             <span className="w-1 h-1 rounded-full bg-slate-200"></span>
             <a 
               href="#/contact" 
               className={`text-[9px] font-bold transition-colors uppercase ${currentHash === '#/contact' ? 'text-slate-950 underline underline-offset-4' : 'text-slate-300 hover:text-slate-500'}`}
             >
-              Support
+              {t.support}
             </a>
           </div>
         </div>

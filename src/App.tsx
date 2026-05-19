@@ -72,7 +72,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
           });
         },
         (err) => console.error(err),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
     }
 
@@ -196,6 +196,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'searching' | 'stabilizing'>('idle');
   
   // Tracking Data State
   const [deliveryData, setDeliveryData] = useState<any>(null);
@@ -329,16 +331,19 @@ export default function App() {
       return;
     }
 
+    setLoading(true);
+    setGpsStatus('searching');
+    
     // Configuration stricte du GPS pour précision maximale
     const geoOptions = {
       enableHighAccuracy: true,
-      timeout: 10000,
+      timeout: 30000, // Augmenté à 30 secondes pour laisser le temps au GPS de se fixer
       maximumAge: 0
     };
 
-    setLoading(true);
     navigator.geolocation.getCurrentPosition(
       async (position) => {
+        setGpsStatus('stabilizing');
         try {
           const { latitude, longitude } = position.coords;
           
@@ -375,14 +380,21 @@ export default function App() {
 
           window.open(`https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`, '_blank');
           setSuccess(true);
+          setGpsStatus('idle');
         } catch (err: any) {
           setLoading(false);
+          setGpsStatus('idle');
           setError("Erreur lors de la création de la livraison : " + err.message);
         }
       },
       (err) => {
         setLoading(false);
-        setError("Impossible de capter votre position exacte. Vérifiez que le GPS est activé.");
+        setGpsStatus('idle');
+        if (err.code === 3) {
+          setError("Le délai d'attente du GPS a expiré. Veuillez réessayer dans un endroit plus dégagé.");
+        } else {
+          setError("Impossible de capter votre position exacte. Vérifiez que le GPS est activé.");
+        }
         console.error("Erreur GPS :", err);
       },
       geoOptions
@@ -616,15 +628,18 @@ export default function App() {
             }`}
           >
             {loading ? (
-              <>
-                <motion.div 
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                >
-                  <Clock size={20} />
-                </motion.div>
-                Récupération GPS...
-              </>
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <motion.div 
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                  >
+                    <Clock size={20} />
+                  </motion.div>
+                  <span>{gpsStatus === 'searching' ? 'Recherche Satellite...' : 'Précision GPS...'}</span>
+                </div>
+                <p className="text-[8px] opacity-70 normal-case tracking-normal font-medium">Ne fermez pas l'application</p>
+              </div>
             ) : activeTab === 'client' ? (
               <>
                 <Share2 size={18} />

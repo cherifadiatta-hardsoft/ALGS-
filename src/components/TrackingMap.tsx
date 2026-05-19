@@ -13,6 +13,8 @@ interface TrackingMapProps {
   showDriver?: boolean;
   onEtaUpdate?: (eta: string | null) => void;
   isDriverView?: boolean;
+  isPickerMode?: boolean;
+  onLocationChange?: (location: Location) => void;
 }
 
 const RouteDisplay = ({ driverLocation, clientLocation, onEtaUpdate }: { 
@@ -76,7 +78,15 @@ const RouteDisplay = ({ driverLocation, clientLocation, onEtaUpdate }: {
   return null;
 };
 
-export const TrackingMap: React.FC<TrackingMapProps> = ({ clientLocation, driverLocation, showDriver, onEtaUpdate, isDriverView }) => {
+export const TrackingMap: React.FC<TrackingMapProps> = ({ 
+  clientLocation, 
+  driverLocation, 
+  showDriver, 
+  onEtaUpdate, 
+  isDriverView,
+  isPickerMode,
+  onLocationChange
+}) => {
   const apiKey = (window as any).GOOGLE_MAPS_PLATFORM_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
 
   if (!apiKey) {
@@ -94,17 +104,24 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({ clientLocation, driver
       <APIProvider apiKey={apiKey}>
         <Map
           defaultCenter={clientLocation}
-          defaultZoom={15}
+          defaultZoom={isPickerMode ? 16 : 15}
           gestureHandling={'greedy'}
           disableDefaultUI={true}
           mapId="ALGS_TRACKING_MAP"
+          onCameraChanged={(ev) => {
+            if (isPickerMode && onLocationChange) {
+              onLocationChange(ev.detail.center);
+            }
+          }}
           internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
         >
-          <AdvancedMarker position={clientLocation} title="Position du Client">
-            <Pin background="#10B981" glyphColor="#fff" borderColor="#059669" />
-          </AdvancedMarker>
+          {!isPickerMode && (
+            <AdvancedMarker position={clientLocation} title="Position du Client">
+              <Pin background="#10B981" glyphColor="#fff" borderColor="#059669" />
+            </AdvancedMarker>
+          )}
 
-          {showDriver && driverLocation && (
+          {showDriver && driverLocation && !isPickerMode && (
             <>
               <AdvancedMarker position={driverLocation} title="Livreur ALGS">
                 <Pin background="#FF7A00" glyphColor="#fff" borderColor="#E66E00" />
@@ -116,18 +133,41 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({ clientLocation, driver
               />
             </>
           )}
-          <MapControls isDriverView={isDriverView} clientLocation={clientLocation} driverLocation={driverLocation} />
+          <MapControls 
+            isDriverView={isDriverView} 
+            clientLocation={clientLocation} 
+            driverLocation={driverLocation} 
+            isPickerMode={isPickerMode}
+          />
         </Map>
+        {isPickerMode && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+            <div className="relative mb-8">
+               <MapPin size={40} className="text-emerald-500 fill-emerald-50 drop-shadow-xl" strokeWidth={3} />
+               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-900 rounded-full blur-[1px] opacity-40 translate-y-1" />
+            </div>
+          </div>
+        )}
       </APIProvider>
     </div>
   );
 };
 
-const MapControls = ({ isDriverView, clientLocation, driverLocation }: { isDriverView?: boolean, clientLocation: Location, driverLocation?: Location }) => {
+const MapControls = ({ isDriverView, clientLocation, driverLocation, isPickerMode }: { isDriverView?: boolean, clientLocation: Location, driverLocation?: Location, isPickerMode?: boolean }) => {
   const map = useMap();
   
   const handleRecenter = () => {
     if (!map) return;
+    if (isPickerMode) {
+       if (navigator.geolocation) {
+         navigator.geolocation.getCurrentPosition((pos) => {
+           map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+           map.setZoom(17);
+         });
+       }
+       return;
+    }
+
     if (isDriverView && driverLocation) {
       map.panTo(driverLocation);
       map.setZoom(17);
@@ -143,10 +183,10 @@ const MapControls = ({ isDriverView, clientLocation, driverLocation }: { isDrive
     <div className="absolute bottom-4 right-4 flex flex-col gap-2">
       <button 
         onClick={handleRecenter}
-        className="p-3 bg-white rounded-xl shadow-lg border border-slate-100 text-slate-600 hover:text-orange-500 active:scale-95 transition-all"
+        className="p-3 bg-white rounded-xl shadow-lg border border-slate-100 text-slate-600 hover:text-emerald-500 active:scale-95 transition-all"
         title="Centrer la vue"
       >
-        <Navigation size={20} className={isDriverView ? '' : 'rotate-45'} />
+        <Navigation size={20} className={isDriverView || isPickerMode ? '' : 'rotate-45'} />
       </button>
     </div>
   );

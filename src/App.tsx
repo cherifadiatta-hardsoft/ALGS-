@@ -298,6 +298,8 @@ export default function App() {
   const [showPreShareConfirm, setShowPreShareConfirm] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState('');
   const [capturedLocation, setCapturedLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [isManualSelection, setIsManualSelection] = useState(false);
+  const [manualLocation, setManualLocation] = useState<{lat: number, lng: number}>({ lat: 14.7167, lng: -17.4677 });
   
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'searching' | 'stabilizing' | 'found'>('idle');
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
@@ -430,6 +432,8 @@ export default function App() {
     setSuccess(false);
     setWhatsappUrl('');
     setCapturedLocation(null);
+    setIsManualSelection(false);
+    setManualLocation({ lat: 14.7167, lng: -17.4677 });
     setGpsAccuracy(null);
     setGpsStatus('idle');
   };
@@ -553,6 +557,52 @@ export default function App() {
         stopAndProceed(stabilizedPos);
       }
     }, 12000);
+  };
+
+  // NOUVEAU : Partage par sélection manuelle (I have arrived mode)
+  const shareManualLocation = async () => {
+    setError('');
+    setSuccess(false);
+    
+    if (!clientPhone || !driverPhone) {
+      setError(t.errorPhoneRequired);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { lat, lng } = manualLocation;
+      
+      // Sauvegarde dans Firestore
+      const deliveryRef = await addDoc(collection(db, 'deliveries'), {
+        clientPhone: clientPhone,
+        driverPhone: driverPhone,
+        clientLocation: { lat, lng },
+        addressDetails: addressDetails,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      const formattedDriver = formatPhoneForWa(driverPhone);
+      const formattedClientForMessage = formatPhoneForWa(clientPhone);
+      const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
+      
+      const message = t.whatsappMessage(trackingLink, addressDetails, formattedClientForMessage);
+      const waUrl = `https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`;
+      
+      setWhatsappUrl(waUrl);
+      window.location.href = waUrl; 
+      
+      setSuccess(true);
+      setShowSuccessToast(true);
+      setLoading(false);
+      setIsManualSelection(false);
+      setTimeout(() => setShowSuccessToast(false), 5000);
+    } catch (err: any) {
+      setLoading(false);
+      setError(t.errorConnection + " : " + err.message);
+    }
   };
 
   // FLUX 2 : Le livreur demande la position au client
@@ -805,6 +855,16 @@ export default function App() {
                 />
               </div>
 
+              <div className="pt-1">
+                <button 
+                  onClick={() => setIsManualSelection(true)}
+                  className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 transition-colors bg-emerald-50/50 px-4 py-2.5 rounded-xl border border-emerald-100/50 w-full justify-center"
+                >
+                  <MapIcon size={14} />
+                  {t.chooseOnMap}
+                </button>
+              </div>
+
               <AnimatePresence>
                 {gpsStatus !== 'idle' && (
                   <motion.div 
@@ -937,6 +997,57 @@ export default function App() {
           )}
         </AnimatePresence>
       </div>
+      
+      <AnimatePresence>
+        {isManualSelection && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950 z-[110] flex flex-col"
+          >
+            <div className="p-6 flex items-center justify-between bg-white/5 backdrop-blur-md border-b border-white/10 z-10">
+              <div>
+                <h3 className="text-white font-black text-lg">{t.manualLocationTitle}</h3>
+                <p className="text-white/50 text-[10px] uppercase font-bold tracking-widest">{t.manualLocationDesc}</p>
+              </div>
+              <button 
+                onClick={() => setIsManualSelection(false)}
+                className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 relative">
+              <TrackingMap 
+                clientLocation={manualLocation}
+                isPickerMode={true}
+                onLocationChange={(loc) => setManualLocation(loc)}
+              />
+            </div>
+
+            <div className="p-6 bg-slate-900 border-t border-white/10 space-y-4">
+               <button 
+                onClick={shareManualLocation}
+                className="w-full py-5 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3"
+              >
+                <CheckCircle2 size={20} />
+                {t.confirmManualLocation}
+              </button>
+              <button 
+                onClick={() => {
+                  setIsManualSelection(false);
+                  shareLocation();
+                }}
+                className="w-full py-4 text-white/40 text-[10px] font-black uppercase tracking-[0.2em] hover:text-white transition-colors"
+              >
+                {t.useGpsInstead}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="pt-8">
         {success ? (

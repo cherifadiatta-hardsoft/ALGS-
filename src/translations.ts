@@ -99,6 +99,11 @@ export const translations = {
     allowGpsDesc: 'ALGS a besoin de votre position pour guider le livreur directement devant chez vous.',
     sendViaWhatsApp: 'Envoyer via WhatsApp',
     landmarkSmartPlaceholder: 'Ex: Maison jaune, portail noir, près de l\'école...',
+    chooseOnMap: 'Choisir sur la carte',
+    confirmManualLocation: 'Confirmer cette position',
+    manualLocationTitle: 'Position sur la carte',
+    manualLocationDesc: 'Déplacez la carte pour placer le marqueur bleu sur votre point de livraison exact.',
+    useGpsInstead: 'Utiliser mon GPS',
   },
   en: {
     appTitle: 'ALGS',
@@ -198,5 +203,10 @@ export const translations = {
     allowGpsDesc: 'ALGS needs your location to guide the driver exactly to your door.',
     sendViaWhatsApp: 'Send via WhatsApp',
     landmarkSmartPlaceholder: 'Ex: Yellow house, black gate, near the school...',
+    chooseOnMap: 'Choose on map',
+    confirmManualLocation: 'Confirm this position',
+    manualLocationTitle: 'Position on map',
+    manualLocationDesc: 'Move the map to place the blue marker on your exact delivery point.',
+    useGpsInstead: 'Use my GPS',
   }
 };

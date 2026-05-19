@@ -198,6 +198,7 @@ export default function App() {
   const [success, setSuccess] = useState(false);
   
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'searching' | 'stabilizing'>('idle');
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   
   // Tracking Data State
   const [deliveryData, setDeliveryData] = useState<any>(null);
@@ -314,6 +315,8 @@ export default function App() {
     setAddressDetails('');
     setError('');
     setSuccess(false);
+    setGpsAccuracy(null);
+    setGpsStatus('idle');
   };
 
   // FLUX 1 : Le client localise et envoie au livreur
@@ -333,72 +336,104 @@ export default function App() {
 
     setLoading(true);
     setGpsStatus('searching');
+    setGpsAccuracy(null);
     
-    // Configuration stricte du GPS pour précision maximale
+    // Configuration GPS stricte pour précision SIM/Matérielle maximale
     const geoOptions = {
       enableHighAccuracy: true,
-      timeout: 30000, // Augmenté à 30 secondes pour laisser le temps au GPS de se fixer
+      timeout: 30000, 
       maximumAge: 0
     };
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        setGpsStatus('stabilizing');
-        try {
-          const { latitude, longitude } = position.coords;
-          
-          // Sauvegarde dans Firestore pour le tracking temps réel
-          const deliveryRef = await addDoc(collection(db, 'deliveries'), {
-            clientPhone: clientPhone,
-            driverPhone: driverPhone,
-            clientLocation: { lat: latitude, lng: longitude },
-            driverLocation: { lat: latitude, lng: longitude }, // Initialement à la position du client
-            addressDetails: addressDetails,
-            status: 'active',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
+    let watchId: number;
+    let stabilizedPos: GeolocationPosition | null = null;
+    let attempts = 0;
+    let finished = false;
 
-          setLoading(false);
+    const stopAndProceed = async (pos: GeolocationPosition) => {
+      if (finished) return;
+      finished = true;
+      
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+      
+      setGpsStatus('stabilizing');
+      try {
+        const { latitude, longitude } = pos.coords;
+        
+        // Sauvegarde dans Firestore pour le tracking temps réel
+        const deliveryRef = await addDoc(collection(db, 'deliveries'), {
+          clientPhone: clientPhone,
+          driverPhone: driverPhone,
+          clientLocation: { lat: latitude, lng: longitude },
+          driverLocation: { lat: latitude, lng: longitude },
+          addressDetails: addressDetails,
+          status: 'active',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
 
-          const formattedDriver = formatPhone(driverPhone);
-          
-          // Lien de tracking temps réel ALGS
-          const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
-          
-          // Génération du lien de guidage forcé Google Maps (mode itinéraire)
-          const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
-          
-          let message = `Bonjour, voici ma position exacte pour la livraison ALGS :\n\n`;
-          message += `📍 Suivi ALGS en direct : ${trackingLink}\n`;
-          message += `🏍️ Cliquez ici pour lancer l'itinéraire : ${googleMapsLink}\n\n`;
-          
-          if (addressDetails.trim() !== '') {
-            message += `🏠 Repère : ${addressDetails}\n`;
-          }
-          message += `📞 Client : +221${clientPhone.replace(/\s+/g, '')}`;
+        setLoading(false);
 
-          window.open(`https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`, '_blank');
-          setSuccess(true);
-          setGpsStatus('idle');
-        } catch (err: any) {
-          setLoading(false);
-          setGpsStatus('idle');
-          setError("Erreur lors de la création de la livraison : " + err.message);
+        const formattedDriver = formatPhone(driverPhone);
+        const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
+        const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
+        
+        let message = `Bonjour, voici ma position exacte pour la livraison ALGS :\n\n`;
+        message += `📍 Suivi ALGS en direct : ${trackingLink}\n`;
+        message += `🏍️ Cliquez ici pour lancer l'itinéraire : ${googleMapsLink}\n\n`;
+        
+        if (addressDetails.trim() !== '') {
+          message += `🏠 Repère : ${addressDetails}\n`;
+        }
+        message += `📞 Client : +221${clientPhone.replace(/\s+/g, '')}`;
+
+        window.open(`https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`, '_blank');
+        setSuccess(true);
+        setGpsStatus('idle');
+      } catch (err: any) {
+        setLoading(false);
+        setGpsStatus('idle');
+        setError("Erreur : " + err.message);
+      }
+    };
+
+    // On utilise watchPosition pour "homing" sur la meilleure précision (SIM + GPS)
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        attempts++;
+        const accuracy = Math.round(position.coords.accuracy);
+        setGpsAccuracy(accuracy);
+        stabilizedPos = position;
+
+        // Si la précision est excellente (< 15m) ou après 5 tentatives, on valide
+        if (accuracy < 15 || attempts > 5) {
+          stopAndProceed(position);
         }
       },
       (err) => {
-        setLoading(false);
-        setGpsStatus('idle');
-        if (err.code === 3) {
-          setError("Le délai d'attente du GPS a expiré. Veuillez réessayer dans un endroit plus dégagé.");
+        if (stabilizedPos) {
+          stopAndProceed(stabilizedPos);
         } else {
-          setError("Impossible de capter votre position exacte. Vérifiez que le GPS est activé.");
+          setLoading(false);
+          setGpsStatus('idle');
+          if (err.code === 3) {
+            setError("Délai GPS expiré. Veuillez vous mettre à découvert.");
+          } else {
+            setError("Impossible de capter votre GPS. Vérifiez vos réglages.");
+          }
+          console.error("Erreur GPS :", err);
+          if (watchId) navigator.geolocation.clearWatch(watchId);
         }
-        console.error("Erreur GPS :", err);
       },
       geoOptions
     );
+
+    // Sécurité : au bout de 12 secondes, on prend ce qu'on a de mieux
+    setTimeout(() => {
+      if (loading && stabilizedPos && gpsStatus !== 'idle') {
+        stopAndProceed(stabilizedPos);
+      }
+    }, 12000);
   };
 
   // FLUX 2 : Le livreur demande la position au client
@@ -494,11 +529,15 @@ export default function App() {
             exit={{ opacity: 0, height: 0 }}
             className="flex flex-col gap-2 mb-6"
           >
-            <div className="bg-emerald-50 text-emerald-700 text-xs px-4 py-3 rounded-xl font-medium border border-emerald-100 flex items-center justify-between gap-2 shadow-sm">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 size={18} className="shrink-0 text-emerald-500" />
+            <div className="bg-emerald-50 text-emerald-900 text-sm px-4 py-3 rounded-xl font-bold border border-emerald-200 flex items-center justify-between gap-2 shadow-md">
+              <motion.div 
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                className="flex items-center gap-2.5"
+              >
+                <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
                 WhatsApp ouvert avec succès !
-              </div>
+              </motion.div>
               <button 
                 onClick={resetForm}
                 className="text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-800 transition-colors"
@@ -637,8 +676,13 @@ export default function App() {
                     <Clock size={20} />
                   </motion.div>
                   <span>{gpsStatus === 'searching' ? 'Recherche Satellite...' : 'Précision GPS...'}</span>
+                  {gpsAccuracy !== null && (
+                    <span className="bg-white/20 px-2 py-0.5 rounded-md text-[10px] font-mono">
+                      {gpsAccuracy}m
+                    </span>
+                  )}
                 </div>
-                <p className="text-[8px] opacity-70 normal-case tracking-normal font-medium">Ne fermez pas l'application</p>
+                <p className="text-[8px] opacity-70 normal-case tracking-normal font-medium">Capture haute précision en cours</p>
               </div>
             ) : activeTab === 'client' ? (
               <>

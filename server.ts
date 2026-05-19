@@ -4,9 +4,9 @@ import { createServer as createViteServer } from "vite";
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
-  console.log("Starting ALGS Server...");
+  console.log(`Starting ALGS Server on port ${PORT}...`);
 
   // API : Route de santé
   app.get("/api/health", (req, res) => {
@@ -38,9 +38,9 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  app.listen(Number(PORT), "0.0.0.0", () => {
     console.log(`✅ Server successfully listening on http://0.0.0.0:${PORT}`);
-    console.log(`Health check: http://localhost:${PORT}/api/health`);
+    console.log(`Health check URL: /api/health`);
   });
 }
 

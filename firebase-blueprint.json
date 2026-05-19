@@ -1,0 +1,49 @@
+{
+  "entities": {
+    "deliveries": {
+      "title": "Delivery",
+      "description": "Represents a delivery tracking session",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pending", "active", "completed"]
+        },
+        "driverId": {
+          "type": "string",
+          "description": "UID of the driver"
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Phone number or ID of the client"
+        },
+        "driverLocation": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          },
+          "required": ["lat", "lng"]
+        },
+        "addressDetails": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["status", "driverLocation", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "deliveries/{deliveryId}": {
+      "schema": "deliveries",
+      "description": "Delivery tracking documents"
+    }
+  }
+}

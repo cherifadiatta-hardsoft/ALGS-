@@ -53,21 +53,23 @@ self.addEventListener('fetch', (event) => {
   } else {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-
-        return fetch(request).then((networkResponse) => {
-          // Cache new static assets on the fly
+        const fetchPromise = fetch(request).then((networkResponse) => {
+          // Update cache with new version from network
           if (
             networkResponse.status === 200 &&
-            (request.url.includes('.js') || request.url.includes('.css') || request.url.includes('.png'))
+            (request.url.includes('.js') || request.url.includes('.css') || request.url.includes('.png') || request.url.includes('.ico'))
           ) {
             const copy = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
           return networkResponse;
+        }).catch(() => {
+          // If network fails, it's fine, we already served from cache or will return undefined
+          return null;
         });
+
+        // Return cached version immediately if available, otherwise wait for network
+        return cachedResponse || fetchPromise;
       })
     );
   }

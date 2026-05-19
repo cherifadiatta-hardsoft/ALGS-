@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   MapPin, 
   Bike, 
@@ -16,9 +16,145 @@ import {
   Share2,
   Clock,
   Smartphone,
-  X
+  X,
+  Compass,
+  Map as MapIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { db } from './lib/firebase';
+import { 
+  collection, 
+  addDoc, 
+  doc, 
+  onSnapshot, 
+  updateDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { TrackingMap } from './components/TrackingMap';
+
+const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [isDriver, setIsDriver] = useState(false);
+
+  useEffect(() => {
+    if (!deliveryId) return;
+
+    const unsub = onSnapshot(doc(db, 'deliveries', deliveryId), (docSnap) => {
+      if (docSnap.exists()) {
+        setData(docSnap.data());
+        setLoading(false);
+      } else {
+        setError('Livraison introuvable');
+        setLoading(false);
+      }
+    }, (err) => {
+      setError('Erreur de connexion : ' + err.message);
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, [deliveryId]);
+
+  useEffect(() => {
+    if (!isDriver || !deliveryId) return;
+
+    let watchId: number;
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          updateDoc(doc(db, 'deliveries', deliveryId), {
+            driverLocation: { lat: latitude, lng: longitude },
+            updatedAt: serverTimestamp()
+          });
+        },
+        (err) => console.error(err),
+        { enableHighAccuracy: true }
+      );
+    }
+
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isDriver, deliveryId]);
+
+  if (loading) return (
+    <div className="w-full max-w-md bg-white rounded-3xl p-12 text-center shadow-xl border border-slate-100 italic font-medium text-slate-400">
+      <Clock className="animate-spin mx-auto mb-4 text-emerald-500" size={32} />
+      Chargement du suivi ALGS...
+    </div>
+  );
+  
+  if (error) return (
+    <div className="w-full max-w-md bg-white rounded-3xl p-12 text-center shadow-xl border border-slate-100">
+      <CircleAlert className="mx-auto mb-4 text-red-500" size={32} />
+      <p className="text-red-500 font-bold">{error}</p>
+      <button onClick={() => window.location.hash = '#/'} className="mt-4 text-xs font-black uppercase tracking-widest text-slate-400 underline">Retour</button>
+    </div>
+  );
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="w-full max-w-md bg-white rounded-3xl shadow-xl p-6 border border-slate-100"
+    >
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-black text-slate-900">Suivi ALGS</h2>
+          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">ID: {deliveryId.slice(0, 8)}</p>
+        </div>
+        <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${data.status === 'active' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+          {data.status === 'active' ? 'En livraison' : data.status}
+        </div>
+      </div>
+
+      <TrackingMap 
+        clientLocation={data.clientLocation} 
+        driverLocation={data.driverLocation}
+        showDriver={true}
+      />
+
+      <div className="mt-6 space-y-4">
+        <div className="flex gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          <MapPin className="text-emerald-500 shrink-0" size={18} />
+          <div className="text-left">
+            <p className="text-[10px] font-black uppercase text-slate-400">Destination</p>
+            <p className="text-sm font-bold text-slate-800 leading-tight mt-1">{data.addressDetails || 'Position partagée par GPS'}</p>
+          </div>
+        </div>
+
+        {!isDriver ? (
+          <button 
+            onClick={() => setIsDriver(true)}
+            className="w-full py-4 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-orange-200 flex items-center justify-center gap-2"
+          >
+            <Bike size={16} />
+            Je suis le livreur (activer mon GPS)
+          </button>
+        ) : (
+          <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 flex items-center gap-3">
+            <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white shrink-0">
+              <Compass size={16} className="animate-pulse" />
+            </div>
+            <p className="text-xs font-bold text-orange-900 leading-tight">
+              Tracking actif. Votre position est partagée avec le client en temps réel.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <button 
+        onClick={() => window.location.hash = '#/'}
+        className="mt-6 w-full py-3 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors"
+      >
+        Quitter le suivi
+      </button>
+    </motion.div>
+  );
+};
 
 export default function App() {
   // 'client' = Le client partage sa position, 'driver' = Le livreur demande la position
@@ -31,12 +167,18 @@ export default function App() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   
+  // Tracking Data State
+  const [deliveryData, setDeliveryData] = useState<any>(null);
+  const [isTrackingMode, setIsTrackingMode] = useState(false);
+  const [isDriverView, setIsDriverView] = useState(false);
+  
   // Routing State
   const [currentHash, setCurrentHash] = useState(window.location.hash || '#/');
   
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showUpdateToast, setShowUpdateToast] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [platform, setPlatform] = useState<'ios' | 'other'>('other');
 
@@ -56,8 +198,29 @@ export default function App() {
         navigator.serviceWorker.register('/sw.js').then(
           (registration) => {
             console.log('Service Worker enregistré successfully:', registration.scope);
+            
+            // Check for updates periodically or on registration
+            registration.onupdatefound = () => {
+              const installingWorker = registration.installing;
+              if (installingWorker) {
+                installingWorker.onstatechange = () => {
+                  if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    // New content is available, show toast
+                    setShowUpdateToast(true);
+                  }
+                };
+              }
+            };
           }
         ).catch(err => console.log('SW registration failed:', err));
+      });
+
+      // Reload page when new SW takes control
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
       });
     }
 
@@ -76,6 +239,7 @@ export default function App() {
       window.scrollTo(0, 0); // Reset scroll on navigation
     };
     window.addEventListener('hashchange', handleHashChange);
+    handleHashChange(); // Initial check
 
     // If iOS and not standalone, show the banner manually after a delay
     if (isIOS && !window.matchMedia('(display-mode: standalone)').matches && !(window.navigator as any).standalone) {
@@ -112,8 +276,16 @@ export default function App() {
     return cleaned;
   };
 
+  const resetForm = () => {
+    setClientPhone('');
+    setDriverPhone('');
+    setAddressDetails('');
+    setError('');
+    setSuccess(false);
+  };
+
   // FLUX 1 : Le client localise et envoie au livreur
-  const handleClientShare = () => {
+  const handleClientShare = async () => {
     setError('');
     setSuccess(false);
     
@@ -129,19 +301,39 @@ export default function App() {
 
     setLoading(true);
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setLoading(false);
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          
+          // Sauvegarde dans Firestore pour le tracking temps réel
+          const deliveryRef = await addDoc(collection(db, 'deliveries'), {
+            clientPhone: clientPhone,
+            driverPhone: driverPhone,
+            clientLocation: { lat: latitude, lng: longitude },
+            driverLocation: { lat: latitude, lng: longitude }, // Initialement à la position du client
+            addressDetails: addressDetails,
+            status: 'active',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
 
-        const formattedDriver = formatPhone(driverPhone);
-        const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
-        
-        let message = `Bonjour, voici ma position exacte pour la livraison ALGS :\n📍 Lien de guidage : ${googleMapsLink}`;
-        if (addressDetails.trim() !== '') message += `\n🏠 Repère : ${addressDetails}`;
-        message += `\n📞 Client : +221${clientPhone.replace(/\s+/g, '')}`;
+          setLoading(false);
 
-        window.open(`https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`, '_blank');
-        setSuccess(true);
+          const formattedDriver = formatPhone(driverPhone);
+          // Lien de tracking temps réel
+          const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
+          const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+          
+          let message = `Bonjour, voici ma position exacte ALGS :\n\n📍 Suivi en direct : ${trackingLink}\n🗺️ Google Maps : ${googleMapsLink}`;
+          if (addressDetails.trim() !== '') message += `\n🏠 Repère : ${addressDetails}`;
+          message += `\n📞 Client : +221${clientPhone.replace(/\s+/g, '')}`;
+
+          window.open(`https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`, '_blank');
+          setSuccess(true);
+        } catch (err: any) {
+          setLoading(false);
+          setError("Erreur lors de la création de la livraison : " + err.message);
+        }
       },
       (err) => {
         setLoading(false);
@@ -170,6 +362,22 @@ export default function App() {
 
     window.open(`https://wa.me/${formattedClient}?text=${encodeURIComponent(message)}`, '_blank');
     setSuccess(true);
+  };
+
+  const renderTracking = () => {
+    const deliveryId = currentHash.split('/track/')[1];
+    
+    if (!deliveryId) {
+      return (
+        <div className="w-full max-w-md bg-white rounded-3xl p-8 text-center">
+          <CircleAlert className="mx-auto text-red-500 mb-4" size={48} />
+          <h2 className="text-xl font-black mb-2">ID de livraison manquant</h2>
+          <button onClick={() => window.location.hash = '#/'} className="text-emerald-500 font-bold">Retour</button>
+        </div>
+      );
+    }
+
+    return <TrackingView deliveryId={deliveryId} />;
   };
 
   const renderHome = () => (
@@ -205,10 +413,21 @@ export default function App() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-50 text-red-600 text-xs px-4 py-3 rounded-xl mb-6 font-medium border border-red-100 flex items-center gap-2"
+            className="flex flex-col gap-2 mb-6"
           >
-            <CircleAlert size={14} className="shrink-0" />
-            {error}
+            <div className="bg-red-50 text-red-600 text-xs px-4 py-3 rounded-xl font-medium border border-red-100 flex items-center justify-between gap-2 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <CircleAlert size={18} className="shrink-0 text-red-500" />
+                {error}
+              </div>
+              <button 
+                onClick={() => setError('')}
+                className="p-1 hover:bg-red-100 rounded-full transition-colors"
+                aria-label="Fermer"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </motion.div>
         )}
         {success && (
@@ -216,10 +435,21 @@ export default function App() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-emerald-50 text-emerald-700 text-xs px-4 py-3 rounded-xl mb-6 font-medium border border-emerald-100 flex items-center gap-2"
+            className="flex flex-col gap-2 mb-6"
           >
-            <CheckCircle2 size={14} className="shrink-0" />
-            WhatsApp ouvert avec succès !
+            <div className="bg-emerald-50 text-emerald-700 text-xs px-4 py-3 rounded-xl font-medium border border-emerald-100 flex items-center justify-between gap-2 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 size={18} className="shrink-0 text-emerald-500" />
+                WhatsApp ouvert avec succès !
+              </div>
+              <button 
+                onClick={resetForm}
+                className="text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-800 transition-colors"
+                id="reset-form-btn-top"
+              >
+                Réinitialiser
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -320,38 +550,49 @@ export default function App() {
       </div>
 
       <div className="pt-8">
-        <motion.button
-          whileTap={{ scale: 0.98 }}
-          onClick={activeTab === 'client' ? handleClientShare : handleDriverRequest}
-          disabled={loading}
-          className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white shadow-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-            activeTab === 'client' 
-              ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200' 
-              : 'bg-[#FF7A00] hover:bg-[#e66e00] shadow-orange-100'
-          }`}
-        >
-          {loading ? (
-            <>
-              <motion.div 
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-              >
-                <Clock size={20} />
-              </motion.div>
-              Récupération GPS...
-            </>
-          ) : activeTab === 'client' ? (
-            <>
-              <Share2 size={18} />
-              Partager ma position
-            </>
-          ) : (
-            <>
-              <Send size={18} />
-              Demander la position
-            </>
-          )}
-        </motion.button>
+        {success ? (
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={resetForm}
+            className="w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-[#FF7A00] border-2 border-orange-100 bg-orange-50/30 flex items-center justify-center gap-3 transition-all"
+          >
+            <Clock size={18} />
+            Nouvelle opération
+          </motion.button>
+        ) : (
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={activeTab === 'client' ? handleClientShare : handleDriverRequest}
+            disabled={loading}
+            className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white shadow-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+              activeTab === 'client' 
+                ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200' 
+                : 'bg-[#FF7A00] hover:bg-[#e66e00] shadow-orange-100'
+            }`}
+          >
+            {loading ? (
+              <>
+                <motion.div 
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                >
+                  <Clock size={20} />
+                </motion.div>
+                Récupération GPS...
+              </>
+            ) : activeTab === 'client' ? (
+              <>
+                <Share2 size={18} />
+                Partager ma position
+              </>
+            ) : (
+              <>
+                <Send size={18} />
+                Demander la position
+              </>
+            )}
+          </motion.button>
+        )}
       </div>
     </motion.div>
   );
@@ -433,6 +674,33 @@ export default function App() {
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center p-4 font-sans text-slate-800">
       
+      <AnimatePresence>
+        {showUpdateToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[340px] bg-slate-900 text-white rounded-2xl p-4 shadow-2xl z-[60] flex items-center justify-between gap-4 border border-white/10"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                <Clock size={16} />
+              </div>
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-wider text-emerald-400">Mise à jour</p>
+                <p className="text-xs font-bold">Nouvelle version disponible</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              className="bg-emerald-500 text-white px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+            >
+              Actualiser
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* PWA Install Banner */}
       <AnimatePresence>
         {showInstallBanner && !isStandalone && (
@@ -501,7 +769,9 @@ export default function App() {
 
       {/* Main Content Router */}
       <AnimatePresence mode="wait">
-        {currentHash === '#/about' ? (
+        {currentHash.includes('#/track/') ? (
+          <React.Fragment key="tracking">{renderTracking()}</React.Fragment>
+        ) : currentHash === '#/about' ? (
           <React.Fragment key="about">{renderAbout()}</React.Fragment>
         ) : currentHash === '#/contact' ? (
           <React.Fragment key="contact">{renderContact()}</React.Fragment>

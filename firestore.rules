@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /deliveries/{deliveryId} {
+      // Pour cet usage, on autorise l'accès public via l'ID unique de la livraison
+      // Dans une version de production, on utiliserait l'authentification
+      allow read, write: if true;
+    }
+  }
+}

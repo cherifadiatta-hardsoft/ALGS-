@@ -4,6 +4,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(process.env.GOOGLE_MAPS_PLATFORM_KEY || '')
+  },
   server: {
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
     hmr: process.env.DISABLE_HMR !== 'true',

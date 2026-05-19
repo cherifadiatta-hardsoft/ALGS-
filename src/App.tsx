@@ -72,7 +72,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
           });
         },
         (err) => console.error(err),
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
 
@@ -325,9 +325,16 @@ export default function App() {
     }
 
     if (!navigator.geolocation) {
-      setError("La géolocalisation n'est pas supportée par votre navigateur.");
+      setError("La géolocalisation n'est pas supportée par ce téléphone.");
       return;
     }
+
+    // Configuration stricte du GPS pour précision maximale
+    const geoOptions = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    };
 
     setLoading(true);
     navigator.geolocation.getCurrentPosition(
@@ -350,13 +357,21 @@ export default function App() {
           setLoading(false);
 
           const formattedDriver = formatPhone(driverPhone);
-          // Lien de tracking temps réel
-          const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
-          const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
           
-          let message = `Bonjour, voici ma position exacte ALGS :\n\n📍 Suivi en direct : ${trackingLink}\n🗺️ Google Maps : ${googleMapsLink}`;
-          if (addressDetails.trim() !== '') message += `\n🏠 Repère : ${addressDetails}`;
-          message += `\n📞 Client : +221${clientPhone.replace(/\s+/g, '')}`;
+          // Lien de tracking temps réel ALGS
+          const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
+          
+          // Génération du lien de guidage forcé Google Maps (mode itinéraire)
+          const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
+          
+          let message = `Bonjour, voici ma position exacte pour la livraison ALGS :\n\n`;
+          message += `📍 Suivi ALGS en direct : ${trackingLink}\n`;
+          message += `🏍️ Cliquez ici pour lancer l'itinéraire : ${googleMapsLink}\n\n`;
+          
+          if (addressDetails.trim() !== '') {
+            message += `🏠 Repère : ${addressDetails}\n`;
+          }
+          message += `📞 Client : +221${clientPhone.replace(/\s+/g, '')}`;
 
           window.open(`https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`, '_blank');
           setSuccess(true);
@@ -367,10 +382,10 @@ export default function App() {
       },
       (err) => {
         setLoading(false);
-        setError("Impossible d'obtenir la position. Assurez-vous d'avoir activé le GPS.");
-        console.error(err);
+        setError("Impossible de capter votre position exacte. Vérifiez que le GPS est activé.");
+        console.error("Erreur GPS :", err);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      geoOptions
     );
   };
 

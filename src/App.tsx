@@ -14,7 +14,9 @@ import {
   CircleAlert,
   CheckCircle2,
   Share2,
-  Clock
+  Clock,
+  Smartphone,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -28,22 +30,77 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  
+  // Routing State
+  const [currentHash, setCurrentHash] = useState(window.location.hash || '#/');
+  
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [platform, setPlatform] = useState<'ios' | 'other'>('other');
 
-  // Registration of Service Worker for PWA
+  // Registration of Service Worker and PWA Logic
   useEffect(() => {
-    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+    // Check if already installed/standalone
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsStandalone(true);
+    }
+
+    // Detect iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    if (isIOS) setPlatform('ios');
+
+    if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').then(
           (registration) => {
-            console.log('Service Worker enregistré avec succès: ', registration.scope);
-          },
-          (err) => {
-            console.log('Échec de l\'enregistrement du Service Worker: ', err);
+            console.log('Service Worker enregistré successfully:', registration.scope);
           }
-        );
+        ).catch(err => console.log('SW registration failed:', err));
       });
     }
+
+    // Listen for install prompt
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Hash control
+    const handleHashChange = () => {
+      setCurrentHash(window.location.hash || '#/');
+      window.scrollTo(0, 0); // Reset scroll on navigation
+    };
+    window.addEventListener('hashchange', handleHashChange);
+
+    // If iOS and not standalone, show the banner manually after a delay
+    if (isIOS && !window.matchMedia('(display-mode: standalone)').matches && !(window.navigator as any).standalone) {
+      const timer = setTimeout(() => {
+        setShowInstallBanner(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('hashchange', handleHashChange);
+    };
   }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response: ${outcome}`);
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    }
+  };
 
   // Nettoyage et formatage du numéro pour WhatsApp (+221)
   const formatPhone = (phone: string) => {
@@ -115,15 +172,321 @@ export default function App() {
     setSuccess(true);
   };
 
+  const renderHome = () => (
+    <motion.div 
+      layout
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/60 p-6 border border-slate-100 flex flex-col"
+    >
+      {/* Tabs Selection */}
+      <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8 relative">
+        <button 
+          onClick={() => { setActiveTab('client'); setError(''); setSuccess(false); }}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold rounded-xl transition-all z-10 ${activeTab === 'client' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          <User size={14} />
+          Espace Client
+        </button>
+        <button 
+          onClick={() => { setActiveTab('driver'); setError(''); setSuccess(false); }}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold rounded-xl transition-all z-10 ${activeTab === 'driver' ? 'bg-white text-[#FF7A00] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          <Bike size={16} />
+          Espace Livreur
+        </button>
+      </div>
+
+      {/* Notifications */}
+      <AnimatePresence mode="wait">
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-red-50 text-red-600 text-xs px-4 py-3 rounded-xl mb-6 font-medium border border-red-100 flex items-center gap-2"
+          >
+            <CircleAlert size={14} className="shrink-0" />
+            {error}
+          </motion.div>
+        )}
+        {success && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-emerald-50 text-emerald-700 text-xs px-4 py-3 rounded-xl mb-6 font-medium border border-emerald-100 flex items-center gap-2"
+          >
+            <CheckCircle2 size={14} className="shrink-0" />
+            WhatsApp ouvert avec succès !
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex-1 overflow-hidden">
+        <AnimatePresence mode="wait">
+          {activeTab === 'client' ? (
+            <motion.div 
+              key="client-form"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="space-y-5"
+            >
+              <div className="space-y-2">
+                <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <Phone size={12} /> Mon Numéro WhatsApp
+                </label>
+                <div className="relative group">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
+                  <input 
+                    type="tel" 
+                    placeholder="77 000 00 00" 
+                    value={clientPhone} 
+                    onChange={(e) => setClientPhone(e.target.value)} 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-18 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <Bike size={12} /> Numéro du Livreur
+                </label>
+                <div className="relative group">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
+                  <input 
+                    type="tel" 
+                    placeholder="76 000 00 00" 
+                    value={driverPhone} 
+                    onChange={(e) => setDriverPhone(e.target.value)} 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-18 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <MapPin size={12} /> Complément d'adresse
+                </label>
+                <textarea 
+                  placeholder="Ex: Près de la mosquée, devant le portail gris..." 
+                  rows={3} 
+                  value={addressDetails} 
+                  onChange={(e) => setAddressDetails(e.target.value)} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] resize-none transition-all placeholder:text-slate-300"
+                />
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="driver-form"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
+                <div className="flex gap-3">
+                  <Clock className="text-orange-500 shrink-0 mt-0.5" size={16} />
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-orange-950">Astuce Livreur</p>
+                    <p className="text-[11px] text-orange-800 leading-relaxed font-medium">
+                      Entrez le numéro du client ci-dessous. Nous préparerons un message WhatsApp avec le lien direct vers cette application pour qu'il puisse vous envoyer sa position exacte.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <User size={12} /> Numéro WhatsApp du Client
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
+                  <input 
+                    type="tel" 
+                    placeholder="77 000 00 00" 
+                    value={clientPhone} 
+                    onChange={(e) => setClientPhone(e.target.value)} 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-18 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 transition-all"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div className="pt-8">
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={activeTab === 'client' ? handleClientShare : handleDriverRequest}
+          disabled={loading}
+          className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white shadow-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            activeTab === 'client' 
+              ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200' 
+              : 'bg-[#FF7A00] hover:bg-[#e66e00] shadow-orange-100'
+          }`}
+        >
+          {loading ? (
+            <>
+              <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+              >
+                <Clock size={20} />
+              </motion.div>
+              Récupération GPS...
+            </>
+          ) : activeTab === 'client' ? (
+            <>
+              <Share2 size={18} />
+              Partager ma position
+            </>
+          ) : (
+            <>
+              <Send size={18} />
+              Demander la position
+            </>
+          )}
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+
+  const renderAbout = () => (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/60 p-8 border border-slate-100"
+    >
+      <h2 className="text-2xl font-black text-slate-950 mb-6">À propos d'ALGS</h2>
+      <div className="space-y-4 text-sm text-slate-600 leading-relaxed">
+        <p>
+          ALGS (Alioune Livraison Gestion Service) est née d'un constat simple : il est souvent difficile de trouver une adresse exacte au Sénégal.
+        </p>
+        <p>
+          Notre mission est de simplifier la rencontre entre les livreurs et les clients grâce à la puissance de la géolocalisation précise, sans avoir à s'échanger des appels interminables pour expliquer son chemin.
+        </p>
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mt-6">
+          <p className="text-[11px] font-black uppercase text-slate-400 mb-2 tracking-widest">Nos Valeurs</p>
+          <ul className="space-y-2 font-bold text-slate-800">
+            <li className="flex items-center gap-2 italic">🚀 Rapidité</li>
+            <li className="flex items-center gap-2 italic">📍 Précision</li>
+            <li className="flex items-center gap-2 italic">🇸🇳 Innovation locale</li>
+          </ul>
+        </div>
+      </div>
+      <button 
+        onClick={() => { window.location.hash = '#/'; }}
+        className="mt-8 w-full py-4 text-xs font-black uppercase tracking-widest text-[#FF7A00] border-2 border-orange-50 rounded-2xl hover:bg-orange-50 transition-colors"
+      >
+        Retour à l'accueil
+      </button>
+    </motion.div>
+  );
+
+  const renderContact = () => (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/60 p-8 border border-slate-100 text-center"
+    >
+      <div className="w-16 h-16 bg-orange-100 rounded-3xl flex items-center justify-center text-[#FF7A00] mx-auto mb-6">
+        <Phone size={32} />
+      </div>
+      <h2 className="text-2xl font-black text-slate-950 mb-2">Contactez-nous</h2>
+      <p className="text-sm text-slate-500 mb-8 px-4">Besoin d'aide ou d'un partenariat ? Notre équipe est à votre écoute.</p>
+      
+      <div className="space-y-3">
+        <a 
+          href="https://wa.me/221770000000" 
+          className="flex items-center justify-between p-4 bg-emerald-50 rounded-2xl border border-emerald-100 group hover:border-emerald-300 transition-all"
+        >
+          <div className="flex flex-col items-start">
+            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">WhatsApp Support</span>
+            <span className="text-sm font-bold text-slate-800">+221 77 ... .. ..</span>
+          </div>
+          <Send size={18} className="text-emerald-500 group-hover:translate-x-1 transition-transform" />
+        </a>
+        
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+          <div className="flex flex-col items-start">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</span>
+            <span className="text-sm font-bold text-slate-800">contact@algs.sn</span>
+          </div>
+          <X size={18} className="text-slate-300" />
+        </div>
+      </div>
+
+      <button 
+        onClick={() => { window.location.hash = '#/'; }}
+        className="mt-8 w-full py-4 text-xs font-black uppercase tracking-widest text-[#FF7A00] border-2 border-orange-50 rounded-2xl hover:bg-orange-50 transition-colors"
+      >
+        Retour à l'accueil
+      </button>
+    </motion.div>
+  );
+
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center p-4 font-sans text-slate-800">
       
+      {/* PWA Install Banner */}
+      <AnimatePresence>
+        {showInstallBanner && !isStandalone && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="w-full max-w-md bg-white border-b border-emerald-100 p-4 mb-4 shadow-xl shadow-emerald-900/5 flex flex-col gap-3 z-50 sticky top-0"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-200">
+                  <Smartphone size={22} />
+                </div>
+                <div className="flex flex-col">
+                  <p className="text-[11px] font-black uppercase text-emerald-600 tracking-wider">Installer ALGS</p>
+                  <p className="text-xs font-bold text-slate-700">Accès rapide comme une application</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowInstallBanner(false)}
+                className="p-2 text-slate-300 hover:text-slate-500 rounded-full hover:bg-slate-50 transition-colors"
+                aria-label="Fermer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {platform === 'ios' ? (
+              <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                <p className="text-[10px] text-emerald-800 font-bold leading-tight">
+                  Pour installer : Appuyez sur <Share2 size={12} className="inline mx-0.5" /> puis sur <span className="underline">"Sur l'écran d'accueil"</span>
+                </p>
+              </div>
+            ) : (
+              <button 
+                onClick={handleInstallClick}
+                className="w-full bg-emerald-500 text-white text-xs font-black uppercase tracking-widest py-3.5 rounded-xl active:scale-[0.98] transition-all shadow-lg shadow-emerald-200"
+              >
+                Ajouter à l'écran d'accueil
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="w-full max-w-md text-center py-8">
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col items-center"
+          onClick={() => { window.location.hash = '#/'; }}
+          style={{ cursor: 'pointer' }}
         >
           <div className="flex items-center gap-2">
             <span className="text-4xl font-black tracking-tighter text-slate-950">
@@ -136,198 +499,18 @@ export default function App() {
         </motion.div>
       </div>
 
-      {/* Main Container */}
-      <motion.div 
-        layout
-        className="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/60 p-6 border border-slate-100 flex flex-col"
-      >
-        {/* Tabs Selection */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8 relative">
-          <button 
-            onClick={() => { setActiveTab('client'); setError(''); setSuccess(false); }}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold rounded-xl transition-all z-10 ${activeTab === 'client' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <User size={14} />
-            Espace Client
-          </button>
-          <button 
-            onClick={() => { setActiveTab('driver'); setError(''); setSuccess(false); }}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold rounded-xl transition-all z-10 ${activeTab === 'driver' ? 'bg-white text-[#FF7A00] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Bike size={16} />
-            Espace Livreur
-          </button>
-        </div>
+      {/* Main Content Router */}
+      <AnimatePresence mode="wait">
+        {currentHash === '#/about' ? (
+          <React.Fragment key="about">{renderAbout()}</React.Fragment>
+        ) : currentHash === '#/contact' ? (
+          <React.Fragment key="contact">{renderContact()}</React.Fragment>
+        ) : (
+          <React.Fragment key="home">{renderHome()}</React.Fragment>
+        )}
+      </AnimatePresence>
 
-        {/* Notifications */}
-        <AnimatePresence mode="wait">
-          {error && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-red-50 text-red-600 text-xs px-4 py-3 rounded-xl mb-6 font-medium border border-red-100 flex items-center gap-2"
-            >
-              <CircleAlert size={14} className="shrink-0" />
-              {error}
-            </motion.div>
-          )}
-          {success && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-emerald-50 text-emerald-700 text-xs px-4 py-3 rounded-xl mb-6 font-medium border border-emerald-100 flex items-center gap-2"
-            >
-              <CheckCircle2 size={14} className="shrink-0" />
-              WhatsApp ouvert avec succès !
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="flex-1 overflow-hidden">
-          <AnimatePresence mode="wait">
-            {/* FORMULAIRE MODE CLIENT */}
-            {activeTab === 'client' ? (
-              <motion.div 
-                key="client-form"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="space-y-5"
-              >
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                    <Phone size={12} /> Mon Numéro WhatsApp
-                  </label>
-                  <div className="relative group">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
-                    <input 
-                      type="tel" 
-                      placeholder="77 000 00 00" 
-                      value={clientPhone} 
-                      onChange={(e) => setClientPhone(e.target.value)} 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-18 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                    <Bike size={12} /> Numéro du Livreur
-                  </label>
-                  <div className="relative group">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
-                    <input 
-                      type="tel" 
-                      placeholder="76 000 00 00" 
-                      value={driverPhone} 
-                      onChange={(e) => setDriverPhone(e.target.value)} 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-18 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                    <MapPin size={12} /> Complément d'adresse
-                  </label>
-                  <textarea 
-                    placeholder="Ex: Près de la mosquée, devant le portail gris..." 
-                    rows={3} 
-                    value={addressDetails} 
-                    onChange={(e) => setAddressDetails(e.target.value)} 
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] resize-none transition-all placeholder:text-slate-300"
-                  />
-                </div>
-              </motion.div>
-            ) : (
-              /* FORMULAIRE MODE LIVREUR */
-              <motion.div 
-                key="driver-form"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
-                <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
-                  <div className="flex gap-3">
-                    <Clock className="text-orange-500 shrink-0 mt-0.5" size={16} />
-                    <div className="space-y-1">
-                      <p className="text-xs font-bold text-orange-950">Astuce Livreur</p>
-                      <p className="text-[11px] text-orange-800 leading-relaxed font-medium">
-                        Entrez le numéro du client ci-dessous. Nous préparerons un message WhatsApp avec le lien direct vers cette application pour qu'il puisse vous envoyer sa position exacte.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                    <User size={12} /> Numéro WhatsApp du Client
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
-                    <input 
-                      type="tel" 
-                      placeholder="77 000 00 00" 
-                      value={clientPhone} 
-                      onChange={(e) => setClientPhone(e.target.value)} 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-18 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 transition-all"
-                    />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Action Button */}
-        <div className="pt-8">
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={activeTab === 'client' ? handleClientShare : handleDriverRequest}
-            disabled={loading}
-            id={activeTab === 'client' ? 'share-location-btn' : 'request-location-btn'}
-            className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white shadow-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-              activeTab === 'client' 
-                ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200 active:bg-emerald-700' 
-                : 'bg-[#FF7A00] hover:bg-[#e66e00] shadow-orange-100 active:bg-[#cc6200]'
-            }`}
-          >
-            {loading ? (
-              <>
-                <motion.div 
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                >
-                  <Clock size={20} />
-                </motion.div>
-                Récupération GPS...
-              </>
-            ) : activeTab === 'client' ? (
-              <>
-                <Share2 size={18} />
-                Partager ma position
-              </>
-            ) : (
-              <>
-                <Send size={18} />
-                Demander la position
-              </>
-            )}
-          </motion.button>
-          
-          <div className="mt-6 flex flex-col items-center gap-2">
-            <div className="flex items-center gap-1.5 opacity-30">
-              <div className="w-1 h-1 rounded-full bg-slate-900"></div>
-              <div className="w-1 h-1 rounded-full bg-slate-900"></div>
-              <div className="w-1 h-1 rounded-full bg-slate-900"></div>
-            </div>
-          </div>
-        </div>
-
-      </motion.div>
+      {/* Trust Badge */}
 
       {/* Trust Badge */}
       <div className="mt-8 flex items-center gap-2 px-6 py-2 bg-slate-200/40 rounded-full">
@@ -344,9 +527,19 @@ export default function App() {
             ALGS © 2026 • Livraison Intelligente
           </p>
           <div className="flex items-center gap-4 mt-2">
-            <a href="#" className="text-[9px] font-bold text-slate-300 hover:text-slate-500 transition-colors uppercase">Confidentialité</a>
+            <a 
+              href="#/about" 
+              className={`text-[9px] font-bold transition-colors uppercase ${currentHash === '#/about' ? 'text-slate-950 underline underline-offset-4' : 'text-slate-300 hover:text-slate-500'}`}
+            >
+              À propos
+            </a>
             <span className="w-1 h-1 rounded-full bg-slate-200"></span>
-            <a href="#" className="text-[9px] font-bold text-slate-300 hover:text-slate-500 transition-colors uppercase">Support</a>
+            <a 
+              href="#/contact" 
+              className={`text-[9px] font-bold transition-colors uppercase ${currentHash === '#/contact' ? 'text-slate-950 underline underline-offset-4' : 'text-slate-300 hover:text-slate-500'}`}
+            >
+              Support
+            </a>
           </div>
         </div>
       </footer>

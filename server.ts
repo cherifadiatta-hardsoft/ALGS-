@@ -1,21 +1,21 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
+  // Hostinger injecte souvent le port via process.env.PORT
   const PORT = process.env.PORT || 3000;
 
-  // API routes go here
+  // Sécurité et compression (optionnel mais recommandé pour la prod)
+  app.use(express.json());
+
+  // API : Route de santé
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", message: "ALGS API is running" });
   });
 
-  // Vite middleware for development
+  // Gestion de l'environnement
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
@@ -24,11 +24,16 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Serve static files from the absolute path to 'dist'
+    // En production, on sert les fichiers du dossier 'dist'
+    // Utilisation de process.cwd() car c'est la racine du projet chez Hostinger
     const distPath = path.resolve(process.cwd(), "dist");
-    app.use(express.static(distPath));
     
-    // Fallback to index.html for SPA routing - extremely important for Hostinger/Express
+    app.use(express.static(distPath, {
+      maxAge: '1d', // Cache d'un jour pour les assets statiques
+      index: false
+    }));
+    
+    // Fallback CRITIQUE pour les PWA et le routage React
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
@@ -39,4 +44,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
+});

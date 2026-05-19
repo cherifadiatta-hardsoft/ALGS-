@@ -1,17 +1,9 @@
 import express from "express";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  // Hostinger injecte souvent le port via process.env.PORT
-  const PORT = process.env.PORT || 3000;
-
-  // Sécurité et compression
-  app.use(express.json());
+  const PORT = 3000;
 
   // API : Route de santé
   app.get("/api/health", (req, res) => {
@@ -28,12 +20,9 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // En production, on sert les fichiers du dossier 'dist'
-    const distPath = path.resolve(process.cwd(), "dist");
+    const distPath = path.join(process.cwd(), "dist");
     
-    app.use(express.static(distPath, {
-      maxAge: '1d',
-      index: false
-    }));
+    app.use(express.static(distPath));
     
     // Fallback pour SPA
     app.get("*", (req, res) => {
@@ -41,7 +30,7 @@ async function startServer() {
     });
   }
 
-  app.listen(Number(PORT), "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
   });
 }

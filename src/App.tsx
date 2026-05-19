@@ -428,8 +428,6 @@ export default function App() {
           updatedAt: serverTimestamp()
         });
 
-        setLoading(false);
-
         const formattedDriver = formatPhone(driverPhone);
         const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
         const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
@@ -443,7 +441,8 @@ export default function App() {
         }
         message += `📞 Client : +221${clientPhone.replace(/\s+/g, '')}`;
 
-        window.open(`https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`, '_blank');
+        // Utilisation de location.href pour éviter le blocage des popups sur mobile
+        window.location.href = `https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`;
         setSuccess(true);
         setGpsStatus('idle');
       } catch (err: any) {
@@ -461,8 +460,8 @@ export default function App() {
         setGpsAccuracy(accuracy);
         stabilizedPos = position;
 
-        // Si la précision est excellente (< 15m) ou après 5 tentatives, on valide
-        if (accuracy < 15 || attempts > 5) {
+        // Si la précision est excellente (< 20m) ou après 4 tentatives, on valide
+        if (accuracy < 20 || attempts > 4) {
           stopAndProceed(position);
         }
       },
@@ -472,10 +471,12 @@ export default function App() {
         } else {
           setLoading(false);
           setGpsStatus('idle');
-          if (err.code === 3) {
-            setError("Délai GPS expiré. Veuillez vous mettre à découvert.");
+          if (err.code === 1) {
+            setError("Permission refusée. Veuillez autoriser l'accès au GPS dans les réglages de votre navigateur.");
+          } else if (err.code === 3) {
+            setError("Délai GPS expiré. Veuillez vous mettre à découvert ou vérifier votre connexion.");
           } else {
-            setError("Impossible de capter votre GPS. Vérifiez vos réglages.");
+            setError("Impossible de capter votre GPS. Vérifiez que la localisation est activée sur votre téléphone.");
           }
           console.error("Erreur GPS :", err);
           if (watchId) navigator.geolocation.clearWatch(watchId);

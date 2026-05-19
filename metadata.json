@@ -1,0 +1,6 @@
+{
+  "name": "ALGS Delivery",
+  "description": "Système de partage de position GPS pour la livraison au Sénégal (Dakar & régions).",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

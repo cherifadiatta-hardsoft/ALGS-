@@ -38,6 +38,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
   const [error, setError] = useState('');
   const [isDriver, setIsDriver] = useState(false);
   const [eta, setEta] = useState<string | null>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   useEffect(() => {
     if (!deliveryId) return;
@@ -157,7 +158,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
 
         {!isDriver ? (
           <button 
-            onClick={() => setIsDriver(true)}
+            onClick={() => setShowConfirmation(true)}
             className="w-full py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-2 group overflow-hidden relative"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -174,6 +175,49 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
             </p>
           </div>
         )}
+
+        <AnimatePresence>
+          {showConfirmation && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-white w-full max-w-xs rounded-3xl p-8 shadow-2xl border border-slate-100 text-center"
+              >
+                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 mx-auto mb-6">
+                  <Navigation size={32} />
+                </div>
+                <h3 className="text-xl font-black text-slate-900 mb-2">Activer le suivi ?</h3>
+                <p className="text-sm text-slate-500 mb-8 leading-relaxed">
+                  En acceptant, votre position GPS sera partagée en direct avec le client pour faciliter la livraison.
+                </p>
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => {
+                      setIsDriver(true);
+                      setShowConfirmation(false);
+                    }}
+                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200"
+                  >
+                    Démarrer le trajet
+                  </button>
+                  <button 
+                    onClick={() => setShowConfirmation(false)}
+                    className="w-full py-3 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-400"
+                  >
+                    Plus tard
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <button 

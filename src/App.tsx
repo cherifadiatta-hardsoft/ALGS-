@@ -109,8 +109,14 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">ID: {deliveryId.slice(0, 8)}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${data.status === 'active' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-            {data.status === 'active' ? 'En livraison' : data.status}
+          <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+            data.status === 'en_route' ? 'bg-emerald-100 text-emerald-600' : 
+            data.status === 'pending' ? 'bg-orange-100 text-orange-600' :
+            'bg-slate-100 text-slate-500'
+          }`}>
+            {data.status === 'en_route' ? 'En livraison' : 
+             data.status === 'pending' ? 'En attente' :
+             data.status}
           </div>
           {eta && (
             <div className="flex items-center gap-1.5 text-orange-600 font-black text-[10px] uppercase tracking-wider bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-100">
@@ -126,6 +132,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
         driverLocation={data.driverLocation}
         showDriver={true}
         onEtaUpdate={setEta}
+        isDriverView={isDriver}
       />
 
       <div className="mt-6 space-y-4">
@@ -202,6 +209,11 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
                     onClick={() => {
                       setIsDriver(true);
                       setShowConfirmation(false);
+                      // Update status to en_route
+                      updateDoc(doc(db, 'deliveries', deliveryId), {
+                        status: 'en_route',
+                        updatedAt: serverTimestamp()
+                      }).catch(err => console.error("Error updating status:", err));
                     }}
                     className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200"
                   >
@@ -409,9 +421,9 @@ export default function App() {
           clientPhone: clientPhone,
           driverPhone: driverPhone,
           clientLocation: { lat: latitude, lng: longitude },
-          driverLocation: { lat: latitude, lng: longitude },
+          // driverLocation: { lat: latitude, lng: longitude }, // Driver hasn't started yet
           addressDetails: addressDetails,
-          status: 'active',
+          status: 'pending',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });

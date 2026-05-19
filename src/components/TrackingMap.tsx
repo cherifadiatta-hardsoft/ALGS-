@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { APIProvider, Map, AdvancedMarker, Pin, useMap, useMapsLibrary } from '@vis.gl/react-google-maps';
-import { Bike, User, MapPin, Clock } from 'lucide-react';
+import { Bike, User, MapPin, Clock, Navigation } from 'lucide-react';
 
 interface Location {
   lat: number;
@@ -12,6 +12,7 @@ interface TrackingMapProps {
   driverLocation?: Location;
   showDriver?: boolean;
   onEtaUpdate?: (eta: string | null) => void;
+  isDriverView?: boolean;
 }
 
 const RouteDisplay = ({ driverLocation, clientLocation, onEtaUpdate }: { 
@@ -25,6 +26,12 @@ const RouteDisplay = ({ driverLocation, clientLocation, onEtaUpdate }: {
 
   useEffect(() => {
     if (!routesLib || !map || !driverLocation || !clientLocation) return;
+
+    // Fit bounds to show both markers
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend(driverLocation);
+    bounds.extend(clientLocation);
+    map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
 
     // Clear previous route
     polylinesRef.current.forEach(p => p.setMap(null));
@@ -68,7 +75,7 @@ const RouteDisplay = ({ driverLocation, clientLocation, onEtaUpdate }: {
   return null;
 };
 
-export const TrackingMap: React.FC<TrackingMapProps> = ({ clientLocation, driverLocation, showDriver, onEtaUpdate }) => {
+export const TrackingMap: React.FC<TrackingMapProps> = ({ clientLocation, driverLocation, showDriver, onEtaUpdate, isDriverView }) => {
   const apiKey = (window as any).GOOGLE_MAPS_PLATFORM_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
 
   if (!apiKey) {
@@ -82,7 +89,7 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({ clientLocation, driver
   }
 
   return (
-    <div className="w-full h-80 rounded-2xl overflow-hidden shadow-inner border border-slate-200">
+    <div className="w-full h-80 rounded-2xl overflow-hidden shadow-inner border border-slate-200 relative">
       <APIProvider apiKey={apiKey}>
         <Map
           defaultCenter={clientLocation}
@@ -108,8 +115,38 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({ clientLocation, driver
               />
             </>
           )}
+          <MapControls isDriverView={isDriverView} clientLocation={clientLocation} driverLocation={driverLocation} />
         </Map>
       </APIProvider>
+    </div>
+  );
+};
+
+const MapControls = ({ isDriverView, clientLocation, driverLocation }: { isDriverView?: boolean, clientLocation: Location, driverLocation?: Location }) => {
+  const map = useMap();
+  
+  const handleRecenter = () => {
+    if (!map) return;
+    if (isDriverView && driverLocation) {
+      map.panTo(driverLocation);
+      map.setZoom(17);
+    } else {
+      const bounds = new google.maps.LatLngBounds();
+      bounds.extend(clientLocation);
+      if (driverLocation) bounds.extend(driverLocation);
+      map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+    }
+  };
+
+  return (
+    <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+      <button 
+        onClick={handleRecenter}
+        className="p-3 bg-white rounded-xl shadow-lg border border-slate-100 text-slate-600 hover:text-orange-500 active:scale-95 transition-all"
+        title="Centrer la vue"
+      >
+        <Navigation size={20} className={isDriverView ? '' : 'rotate-45'} />
+      </button>
     </div>
   );
 };

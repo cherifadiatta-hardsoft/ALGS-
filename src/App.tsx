@@ -37,6 +37,7 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isDriver, setIsDriver] = useState(false);
+  const [eta, setEta] = useState<string | null>(null);
 
   useEffect(() => {
     if (!deliveryId) return;
@@ -106,8 +107,16 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
           <h2 className="text-lg font-black text-slate-900">Suivi ALGS</h2>
           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">ID: {deliveryId.slice(0, 8)}</p>
         </div>
-        <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${data.status === 'active' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-          {data.status === 'active' ? 'En livraison' : data.status}
+        <div className="flex flex-col items-end gap-1">
+          <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${data.status === 'active' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+            {data.status === 'active' ? 'En livraison' : data.status}
+          </div>
+          {eta && (
+            <div className="flex items-center gap-1.5 text-orange-600 font-black text-[10px] uppercase tracking-wider bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-100">
+              <Clock size={10} />
+              Arrivée : {eta}
+            </div>
+          )}
         </div>
       </div>
 
@@ -115,29 +124,50 @@ const TrackingView = ({ deliveryId }: { deliveryId: string }) => {
         clientLocation={data.clientLocation} 
         driverLocation={data.driverLocation}
         showDriver={true}
+        onEtaUpdate={setEta}
       />
 
       <div className="mt-6 space-y-4">
-        <div className="flex gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-          <MapPin className="text-emerald-500 shrink-0" size={18} />
+        <div className="flex gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:shadow-sm transition-all group">
+          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+            <MapPin size={20} />
+          </div>
           <div className="text-left">
-            <p className="text-[10px] font-black uppercase text-slate-400">Destination</p>
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">Destination</p>
             <p className="text-sm font-bold text-slate-800 leading-tight mt-1">{data.addressDetails || 'Position partagée par GPS'}</p>
           </div>
         </div>
 
+        {eta && (
+          <div className="p-4 bg-orange-50/50 rounded-2xl border border-orange-100/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600">
+                <Bike size={20} />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">Temps d'arrivée estimé</p>
+                <p className="text-base font-black text-orange-600 leading-tight mt-0.5">{eta}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[8px] font-black uppercase text-slate-300">Basé sur le trafic</p>
+            </div>
+          </div>
+        )}
+
         {!isDriver ? (
           <button 
             onClick={() => setIsDriver(true)}
-            className="w-full py-4 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-orange-200 flex items-center justify-center gap-2"
+            className="w-full py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-2 group overflow-hidden relative"
           >
-            <Bike size={16} />
-            Je suis le livreur (activer mon GPS)
+            <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Bike size={16} className="relative z-10 transition-transform group-hover:-rotate-12" />
+            <span className="relative z-10">Je suis le livreur</span>
           </button>
         ) : (
-          <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 flex items-center gap-3">
-            <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white shrink-0">
-              <Compass size={16} className="animate-pulse" />
+          <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 flex items-center gap-3 shadow-inner">
+            <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white shrink-0 shadow-lg shadow-orange-200">
+              <Compass size={16} className="animate-spin-slow" />
             </div>
             <p className="text-xs font-bold text-orange-900 leading-tight">
               Tracking actif. Votre position est partagée avec le client en temps réel.

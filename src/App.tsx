@@ -19,7 +19,8 @@ import {
   X,
   Compass,
   Map as MapIcon,
-  Languages
+  Languages,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from './lib/firebase';
@@ -86,6 +87,22 @@ const TrackingView = ({ deliveryId, language }: { deliveryId: string; language: 
     };
   }, [isDriver, deliveryId]);
 
+  const openInNativeMaps = (lat: number, lng: number) => {
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    
+    if (isAndroid) {
+      // Force ouverture Google Maps App sur Android
+      window.location.href = `geo:${lat},${lng}?q=${lat},${lng}`;
+    } else if (isiOS) {
+      // Sur iPhone, on utilise Google Maps Search API qui propose souvent d'ouvrir l'app
+      window.location.href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    } else {
+      // Desktop ou autre
+      window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
+    }
+  };
+
   if (loading) return (
     <div className="w-full max-w-md bg-white rounded-3xl p-12 text-center shadow-xl border border-slate-100 italic font-medium text-slate-400">
       <Clock className="animate-spin mx-auto mb-4 text-emerald-500" size={32} />
@@ -140,15 +157,29 @@ const TrackingView = ({ deliveryId, language }: { deliveryId: string; language: 
       />
 
       <div className="mt-6 space-y-4">
-        <div className="flex gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:shadow-sm transition-all group">
+        <button 
+          onClick={() => openInNativeMaps(data.clientLocation.lat, data.clientLocation.lng)}
+          className="flex gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:shadow-sm transition-all group w-full"
+        >
           <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
             <MapPin size={20} />
           </div>
-          <div className="text-left">
+          <div className="text-left flex-1">
             <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">{t.destination}</p>
             <p className="text-sm font-bold text-slate-800 leading-tight mt-1">{data.addressDetails || t.sharedByGps}</p>
           </div>
-        </div>
+          <div className="flex items-center text-emerald-400 group-hover:text-emerald-600 transition-colors">
+             <Smartphone size={16} />
+          </div>
+        </button>
+
+        <button 
+          onClick={() => openInNativeMaps(data.clientLocation.lat, data.clientLocation.lng)}
+          className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
+        >
+          <MapIcon size={16} />
+          {t.openInGoogleMaps}
+        </button>
 
         {eta && (
           <div className="p-4 bg-orange-50/50 rounded-2xl border border-orange-100/50 flex items-center justify-between">
@@ -265,8 +296,10 @@ export default function App() {
   const [success, setSuccess] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showPreShareConfirm, setShowPreShareConfirm] = useState(false);
+  const [whatsappUrl, setWhatsappUrl] = useState('');
+  const [capturedLocation, setCapturedLocation] = useState<{lat: number, lng: number} | null>(null);
   
-  const [gpsStatus, setGpsStatus] = useState<'idle' | 'searching' | 'stabilizing'>('idle');
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'searching' | 'stabilizing' | 'found'>('idle');
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   
   // Tracking Data State
@@ -369,8 +402,24 @@ export default function App() {
   };
 
   // Nettoyage et formatage du numéro pour WhatsApp (Full International)
-  const formatPhone = (phone: string) => {
-    return phone.replace(/\D/g, ''); // Garde uniquement les chiffres pour wa.me/XXXXXXXXXX
+  const formatPhoneForWa = (phone: string) => {
+    let cleaned = phone.replace(/\D/g, ''); // Garde uniquement les chiffres
+    if (cleaned.length === 9 && cleaned.startsWith('7')) {
+      return '221' + cleaned;
+    }
+    return cleaned;
+  };
+
+  // Formatage visuel pendant la saisie (ex: +221 77 000 00 00)
+  const formatPhoneDisplay = (value: string) => {
+    let cleaned = value.replace(/\D/g, '');
+    if (cleaned.startsWith('221')) cleaned = cleaned.slice(3);
+    
+    if (cleaned.length === 0) return '';
+    if (cleaned.length <= 2) return cleaned;
+    if (cleaned.length <= 5) return `${cleaned.slice(0, 2)} ${cleaned.slice(2)}`;
+    if (cleaned.length <= 7) return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 5)} ${cleaned.slice(5)}`;
+    return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 5)} ${cleaned.slice(5, 7)} ${cleaned.slice(7, 9)}`;
   };
 
   const resetForm = () => {
@@ -379,6 +428,8 @@ export default function App() {
     setAddressDetails('');
     setError('');
     setSuccess(false);
+    setWhatsappUrl('');
+    setCapturedLocation(null);
     setGpsAccuracy(null);
     setGpsStatus('idle');
   };
@@ -423,30 +474,39 @@ export default function App() {
       setGpsStatus('stabilizing');
       try {
         const { latitude, longitude } = pos.coords;
+        setCapturedLocation({ lat: latitude, lng: longitude });
+        setGpsStatus('found');
         
-        // Sauvegarde dans Firestore pour le tracking temps réel
-        const deliveryRef = await addDoc(collection(db, 'deliveries'), {
-          clientPhone: clientPhone,
-          driverPhone: driverPhone,
-          clientLocation: { lat: latitude, lng: longitude },
-          addressDetails: addressDetails,
-          status: 'pending',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
+        // On attend un court instant pour que l'utilisateur voit la carte
+        setTimeout(async () => {
+          // Sauvegarde dans Firestore pour le tracking temps réel
+          const deliveryRef = await addDoc(collection(db, 'deliveries'), {
+            clientPhone: clientPhone,
+            driverPhone: driverPhone,
+            clientLocation: { lat: latitude, lng: longitude },
+            addressDetails: addressDetails,
+            status: 'pending',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
 
-        const formattedDriver = formatPhone(driverPhone);
-        const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
-        const googleMapsLink = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
-        
-        const message = t.whatsappMessage(trackingLink, googleMapsLink, addressDetails, clientPhone);
+          const formattedDriver = formatPhoneForWa(driverPhone);
+          const formattedClientForMessage = formatPhoneForWa(clientPhone);
+          const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
+          
+          const message = t.whatsappMessage(trackingLink, addressDetails, formattedClientForMessage);
 
-        // Utilisation de location.href pour éviter le blocage des popups sur mobile comme conseillé
-        window.location.href = `https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`;
-        setSuccess(true);
-        setShowSuccessToast(true);
-        setTimeout(() => setShowSuccessToast(false), 5000);
-        setGpsStatus('idle');
+          const waUrl = `https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`;
+          setWhatsappUrl(waUrl);
+          
+          // Tentative d'ouverture directe
+          setGpsStatus('idle');
+          window.location.href = waUrl; 
+          
+          setSuccess(true);
+          setShowSuccessToast(true);
+          setTimeout(() => setShowSuccessToast(false), 5000);
+        }, 1500);
       } catch (err: any) {
         setLoading(false);
         setGpsStatus('idle');
@@ -505,14 +565,81 @@ export default function App() {
       return;
     }
 
-    const formattedClient = formatPhone(clientPhone);
+    const formattedClient = formatPhoneForWa(clientPhone);
     // Lien de l'appli en production où le client pourra cliquer
     const appUrl = window.location.origin; 
     
     const message = t.driverRequestMessage(appUrl);
 
-    window.open(`https://wa.me/${formattedClient}?text=${encodeURIComponent(message)}`, '_blank');
+    const waUrl = `https://wa.me/${formattedClient}?text=${encodeURIComponent(message)}`;
+    setWhatsappUrl(waUrl);
+    window.open(waUrl, '_blank');
     setSuccess(true);
+  };
+
+  // Partager SA position au client (Action Livreur)
+  const shareDriverLocation = () => {
+    setLoading(true);
+    setError('');
+    setSuccess(false);
+    setGpsStatus('searching');
+    
+    if (!clientPhone) {
+      setError(t.errorClientPhoneRequired);
+      setLoading(false);
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setError(t.errorGeoNotSupported);
+      setLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const formattedClient = formatPhoneForWa(clientPhone);
+        
+        // On crée aussi une "livraison" pour le tracking livreur -> client
+        try {
+          const deliveryRef = await addDoc(collection(db, 'deliveries'), {
+            clientPhone: clientPhone,
+            driverLocation: { lat: latitude, lng: longitude },
+            // On peut mettre la position du livreur en destination si c'est juste un partage
+            clientLocation: { lat: latitude, lng: longitude }, 
+            status: 'en_route',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+
+          const trackingLink = `${window.location.origin}/#/track/${deliveryRef.id}`;
+          const message = t.driverShareMessage(trackingLink);
+          const waUrl = `https://wa.me/${formattedClient}?text=${encodeURIComponent(message)}`;
+          
+          setWhatsappUrl(waUrl);
+          window.open(waUrl, '_blank');
+          
+          setLoading(false);
+          setGpsStatus('idle');
+          setSuccess(true);
+          setShowSuccessToast(true);
+          setTimeout(() => setShowSuccessToast(false), 5000);
+        } catch (err: any) {
+          setLoading(false);
+          setGpsStatus('idle');
+          setError(t.errorConnection);
+        }
+      },
+      (err) => {
+        setLoading(false);
+        setGpsStatus('idle');
+        if (err.code === 1) setError(t.errorGpsPermission);
+        else if (err.code === 3) setError(t.errorGpsTimeout);
+        else setError(t.errorGpsGeneral);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   const renderTracking = () => {
@@ -588,22 +715,36 @@ export default function App() {
             exit={{ opacity: 0, height: 0 }}
             className="flex flex-col gap-2 mb-6"
           >
-            <div className="bg-emerald-50 text-emerald-900 text-sm px-4 py-3 rounded-xl font-bold border border-emerald-200 flex items-center justify-between gap-2 shadow-md">
-              <motion.div 
-                initial={{ scale: 0.9 }}
-                animate={{ scale: 1 }}
-                className="flex items-center gap-2.5"
-              >
-                <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
-                {t.successMessage}
-              </motion.div>
-              <button 
-                onClick={resetForm}
-                className="text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-800 transition-colors"
-                id="reset-form-btn-top"
-              >
-                {t.reset}
-              </button>
+            <div className="bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-2xl p-4 shadow-md overflow-hidden relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
+                  <span className="font-bold text-sm">{t.successMessage}</span>
+                </div>
+                <button 
+                  onClick={resetForm}
+                  className="text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-800"
+                >
+                  {t.reset}
+                </button>
+              </div>
+              
+              {whatsappUrl && (
+                <div className="space-y-3 pt-2 border-t border-emerald-100">
+                  <p className="text-[10px] text-emerald-700 font-medium leading-relaxed">
+                    {t.waFallbackDesc}
+                  </p>
+                  <a 
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-200 active:scale-[0.98] transition-all"
+                  >
+                    <Send size={14} />
+                    {t.openWhatsApp}
+                  </a>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -624,13 +765,13 @@ export default function App() {
                   <Phone size={12} /> {t.myWhatsApp}
                 </label>
                 <div className="relative group">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
                   <input 
                     type="tel" 
-                    placeholder="221 77 000 00 00" 
+                    placeholder="77 000 00 00" 
                     value={clientPhone} 
-                    onChange={(e) => setClientPhone(e.target.value)} 
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all"
+                    onChange={(e) => setClientPhone(formatPhoneDisplay(e.target.value))} 
+                    className="w-full bg-emerald-50/30 border border-slate-200 rounded-2xl py-3.5 pl-16 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all font-mono"
                   />
                 </div>
               </div>
@@ -640,13 +781,13 @@ export default function App() {
                   <Bike size={12} /> {t.driverNumber}
                 </label>
                 <div className="relative group">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
                   <input 
                     type="tel" 
-                    placeholder="221 76 000 00 00" 
+                    placeholder="76 000 00 00" 
                     value={driverPhone} 
-                    onChange={(e) => setDriverPhone(e.target.value)} 
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all"
+                    onChange={(e) => setDriverPhone(formatPhoneDisplay(e.target.value))} 
+                    className="w-full bg-orange-50/30 border border-slate-200 rounded-2xl py-3.5 pl-16 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all font-mono"
                   />
                 </div>
               </div>
@@ -656,39 +797,85 @@ export default function App() {
                   <MapPin size={12} /> {t.addressDetails}
                 </label>
                 <textarea 
-                  placeholder={t.addressPlaceholder} 
+                  placeholder={t.landmarkSmartPlaceholder} 
                   rows={2} 
                   value={addressDetails} 
                   onChange={(e) => setAddressDetails(e.target.value)} 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] resize-none transition-all placeholder:text-slate-300"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] resize-none transition-all placeholder:text-slate-300"
                 />
               </div>
 
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={() => {
-                  if (!clientPhone || !driverPhone) {
-                    setError(t.errorPhoneRequired);
-                    return;
-                  }
-                  setShowPreShareConfirm(true);
-                }}
-                disabled={loading}
-                className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] text-white bg-slate-900 shadow-xl shadow-slate-200 flex items-center justify-center gap-3 transition-all mt-2 overflow-hidden relative group"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <Clock size={16} className="animate-spin" />
-                    ...
-                  </span>
-                ) : (
-                  <>
-                    <Share2 size={18} />
-                    {t.shareLocation}
-                  </>
+              <AnimatePresence>
+                {gpsStatus !== 'idle' && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 shadow-sm relative overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-200 relative">
+                          {gpsStatus === 'found' ? <CheckCircle2 size={16} /> : <Compass size={18} className="animate-spin-slow" />}
+                          {gpsStatus !== 'found' && (
+                            <div className="absolute inset-0 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-emerald-900 uppercase tracking-wide">
+                            {gpsStatus === 'searching' ? t.findingPosition : 
+                             gpsStatus === 'stabilizing' ? t.stabilizingGps : 
+                             gpsStatus === 'found' ? t.positionFound : t.searchingGps}
+                          </p>
+                          {gpsAccuracy !== null && (
+                            <p className="text-[10px] font-bold text-emerald-600">
+                              {t.accuracy}: {gpsAccuracy}{t.meters}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {gpsAccuracy !== null && (
+                        <div className="text-right">
+                          <div className="h-1.5 w-16 bg-emerald-200 rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${Math.max(10, 100 - (gpsAccuracy * 2))}%` }}
+                              className="h-full bg-emerald-500"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {capturedLocation && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-xl overflow-hidden border border-emerald-200 shadow-inner h-24 bg-slate-100 relative group"
+                      >
+                         <TrackingMap 
+                            clientLocation={capturedLocation} 
+                            driverLocation={capturedLocation}
+                            showDriver={false}
+                            isDriverView={false}
+                            onEtaUpdate={() => {}}
+                          />
+                          <div className="absolute inset-0 bg-emerald-900/10 pointer-events-none" />
+                      </motion.div>
+                    )}
+                    
+                    {gpsStatus === 'found' && (
+                      <motion.p 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-center mt-3 text-[10px] font-black text-emerald-600 uppercase tracking-widest animate-pulse"
+                      >
+                        {t.openingWhatsApp}
+                      </motion.p>
+                    )}
+                  </motion.div>
                 )}
-              </motion.button>
+              </AnimatePresence>
             </motion.div>
           ) : (
             <motion.div 
@@ -715,15 +902,36 @@ export default function App() {
                   <User size={12} /> {t.clientWhatsApp}
                 </label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
                   <input 
                     type="tel" 
-                    placeholder="221 77 000 00 00" 
+                    placeholder="77 000 00 00" 
                     value={clientPhone} 
-                    onChange={(e) => setClientPhone(e.target.value)} 
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 transition-all"
+                    onChange={(e) => setClientPhone(formatPhoneDisplay(e.target.value))} 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-16 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 transition-all font-mono"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleDriverRequest}
+                  disabled={loading}
+                  className="py-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-800 flex flex-col items-center justify-center gap-2 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  <MessageSquare size={18} className="text-slate-400" />
+                  {t.requestLocation}
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={shareDriverLocation}
+                  disabled={loading}
+                  className="py-4 bg-slate-900 border-2 border-slate-900 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white flex flex-col items-center justify-center gap-2 hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200 disabled:opacity-50"
+                >
+                  <MapPin size={18} className="text-emerald-400" />
+                  {t.shareLocation}
+                </motion.button>
               </div>
             </motion.div>
           )}
@@ -740,58 +948,26 @@ export default function App() {
             <Clock size={18} />
             {t.newOperation}
           </motion.button>
-        ) : (
+        ) : activeTab === 'client' ? (
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={() => {
-              if (activeTab === 'client') {
-                if (!clientPhone || !driverPhone) {
-                  setError(t.errorPhoneRequired);
-                  return;
-                }
-                setShowPreShareConfirm(true);
-              } else {
-                handleDriverRequest();
+              if (!clientPhone || !driverPhone) {
+                setError(t.errorPhoneRequired);
+                return;
               }
+              setShowPreShareConfirm(true);
             }}
-            disabled={loading}
-            className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white shadow-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-              activeTab === 'client' 
-                ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200' 
-                : 'bg-[#FF7A00] hover:bg-[#e66e00] shadow-orange-100'
-            }`}
+            disabled={loading || gpsStatus !== 'idle'}
+            className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white shadow-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200 group relative overflow-hidden`}
           >
-            {loading ? (
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-2">
-                  <motion.div 
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                  >
-                    <Clock size={20} />
-                  </motion.div>
-                  <span>{gpsStatus === 'searching' ? t.searchingGps : t.stabilizingGps}</span>
-                  {gpsAccuracy !== null && (
-                    <span className="bg-white/20 px-2 py-0.5 rounded-md text-[10px] font-mono">
-                      {gpsAccuracy}m
-                    </span>
-                  )}
-                </div>
-                <p className="text-[8px] opacity-70 normal-case tracking-normal font-medium">{t.highPrecision}</p>
-              </div>
-            ) : activeTab === 'client' ? (
-              <>
-                <Share2 size={18} />
-                {t.shareLocation}
-              </>
-            ) : (
-              <>
+             <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+             <div className="flex items-center gap-2 group-active:scale-95 transition-transform">
                 <Send size={18} />
-                {t.requestLocation}
-              </>
-            )}
+                {t.sendViaWhatsApp}
+             </div>
           </motion.button>
-        )}
+        ) : null}
       </div>
     </motion.div>
   );
@@ -887,12 +1063,13 @@ export default function App() {
               exit={{ scale: 0.9, y: 20 }}
               className="bg-white w-full max-w-xs rounded-3xl p-8 shadow-2xl border border-slate-100 text-center"
             >
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mx-auto mb-6">
-                <MapPin size={32} />
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mx-auto mb-6 relative">
+                <Compass size={32} className="animate-spin-slow" />
+                <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin" />
               </div>
-              <h3 className="text-xl font-black text-slate-900 mb-2">{t.confirmShareTitle}</h3>
+              <h3 className="text-xl font-black text-slate-900 mb-2">{t.allowGpsTitle}</h3>
               <p className="text-sm text-slate-500 mb-8 leading-relaxed">
-                {t.confirmShareDesc}
+                {t.allowGpsDesc}
               </p>
               <div className="space-y-3">
                 <button 
@@ -900,8 +1077,9 @@ export default function App() {
                     setShowPreShareConfirm(false);
                     shareLocation();
                   }}
-                  className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-100"
+                  className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
                 >
+                  <MapPin size={18} />
                   {t.confirmButton}
                 </button>
                 <button 

@@ -54,6 +54,10 @@ export const translations = {
     loadingTracking: 'Chargement du suivi ALGS...',
     missingDeliveryId: 'ID de livraison manquant',
     back: 'Retour',
+    openWhatsApp: 'Ouvrir WhatsApp',
+    openInGoogleMaps: 'Ouvrir dans Google Maps',
+    openInNativeApp: 'Ouvrir dans l\'application Maps',
+    waFallbackDesc: 'Si WhatsApp ne s\'est pas ouvert automatiquement, cliquez ci-dessous :',
     errorConnection: 'Erreur de connexion',
     deliveryNotFound: 'Livraison introuvable',
     pwaInstallTitle: 'Installer ALGS',
@@ -73,17 +77,28 @@ export const translations = {
     errorGpsPermission: "Permission refusée. Veuillez autoriser l'accès au GPS dans les réglages de votre navigateur.",
     errorGpsTimeout: "Délai GPS expiré. Veuillez vous mettre à découvert ou vérifier votre connexion.",
     errorGpsGeneral: "Impossible de capter votre GPS. Vérifiez que la localisation est activée sur votre téléphone.",
-    whatsappMessage: (trackingLink: string, googleMapsLink: string, addressDetails: string, clientPhone: string) => {
+    whatsappMessage: (trackingLink: string, addressDetails: string, clientPhone: string) => {
       let msg = `Bonjour, voici ma position exacte pour la livraison ALGS :\n\n`;
-      msg += `📍 Suivi ALGS en direct : ${trackingLink}\n`;
-      msg += `🏍️ Cliquez ici pour lancer l'itinéraire : ${googleMapsLink}\n\n`;
+      msg += `📍 Suivre en direct sur ALGS : ${trackingLink}\n\n`;
       if (addressDetails.trim() !== '') msg += `🏠 Repère : ${addressDetails}\n`;
-      msg += `📞 Client : +${clientPhone.replace(/\s+/g, '')}`;
+      msg += `📞 Client : +${clientPhone}`;
       return msg;
+    },
+    driverShareMessage: (trackingLink: string) => {
+      return `Bonjour, c'est votre livreur ALGS. 🏍️\n\nJe suis en route vers vous ! Vous pouvez me suivre en temps réel ici :\n📍 ${trackingLink}\n\nÀ tout de suite !`;
     },
     driverRequestMessage: (appUrl: string) => {
       return `Bonjour, c'est votre livreur ALGS. 🏍️\nPourriez-vous cliquer sur le lien ci-dessous pour me partager votre position exacte en 1 clic et faciliter votre livraison ?\n\n👉 Cliquez ici : ${appUrl}`;
-    }
+    },
+    findingPosition: 'Recherche de votre position...',
+    positionFound: 'Position trouvée !',
+    openingWhatsApp: 'Ouverture de WhatsApp...',
+    accuracy: 'Précision',
+    meters: 'mètres',
+    allowGpsTitle: 'Accès GPS requis',
+    allowGpsDesc: 'ALGS a besoin de votre position pour guider le livreur directement devant chez vous.',
+    sendViaWhatsApp: 'Envoyer via WhatsApp',
+    landmarkSmartPlaceholder: 'Ex: Maison jaune, portail noir, près de l\'école...',
   },
   en: {
     appTitle: 'ALGS',
@@ -138,6 +153,10 @@ export const translations = {
     loadingTracking: 'Loading ALGS tracking...',
     missingDeliveryId: 'Missing delivery ID',
     back: 'Back',
+    openWhatsApp: 'Open WhatsApp',
+    openInGoogleMaps: 'Open in Google Maps',
+    openInNativeApp: 'Open in Maps App',
+    waFallbackDesc: 'If WhatsApp did not open automatically, click below:',
     errorConnection: 'Connection error',
     deliveryNotFound: 'Delivery not found',
     pwaInstallTitle: 'Install ALGS',
@@ -157,16 +176,27 @@ export const translations = {
     errorGpsPermission: 'Permission denied. Please allow GPS access in your browser settings.',
     errorGpsTimeout: 'GPS timeout expired. Please stay in the open or check your connection.',
     errorGpsGeneral: 'Impossible to capture your GPS. Check that location is enabled on your phone.',
-    whatsappMessage: (trackingLink: string, googleMapsLink: string, addressDetails: string, clientPhone: string) => {
+    whatsappMessage: (trackingLink: string, addressDetails: string, clientPhone: string) => {
       let msg = `Hello, here is my exact position for ALGS delivery:\n\n`;
-      msg += `📍 Live ALGS tracking: ${trackingLink}\n`;
-      msg += `🏍️ Click here to start the route: ${googleMapsLink}\n\n`;
+      msg += `📍 Follow live on ALGS: ${trackingLink}\n\n`;
       if (addressDetails.trim() !== '') msg += `🏠 Landmark: ${addressDetails}\n`;
-      msg += `📞 Client: +${clientPhone.replace(/\s+/g, '')}`;
+      msg += `📞 Client: +${clientPhone}`;
       return msg;
+    },
+    driverShareMessage: (trackingLink: string) => {
+      return `Hello, this is your ALGS delivery driver. 🏍️\n\nI am on my way to you! You can track me in real-time here:\n📍 ${trackingLink}\n\nSee you soon!`;
     },
     driverRequestMessage: (appUrl: string) => {
       return `Hello, this is your ALGS delivery driver. 🏍️\nCould you please click the link below to share your exact location in 1 click and facilitate your delivery?\n\n👉 Click here: ${appUrl}`;
-    }
+    },
+    findingPosition: 'Finding your position...',
+    positionFound: 'Position found!',
+    openingWhatsApp: 'Opening WhatsApp...',
+    accuracy: 'Accuracy',
+    meters: 'meters',
+    allowGpsTitle: 'GPS Access Needed',
+    allowGpsDesc: 'ALGS needs your location to guide the driver exactly to your door.',
+    sendViaWhatsApp: 'Send via WhatsApp',
+    landmarkSmartPlaceholder: 'Ex: Yellow house, black gate, near the school...',
   }
 };

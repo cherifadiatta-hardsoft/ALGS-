@@ -252,6 +252,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [showPreShareConfirm, setShowPreShareConfirm] = useState(false);
   
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'searching' | 'stabilizing'>('idle');
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
@@ -376,7 +378,7 @@ export default function App() {
   };
 
   // FLUX 1 : Le client localise et envoie au livreur
-  const handleClientShare = async () => {
+  const shareLocation = async () => {
     setError('');
     setSuccess(false);
     
@@ -421,7 +423,6 @@ export default function App() {
           clientPhone: clientPhone,
           driverPhone: driverPhone,
           clientLocation: { lat: latitude, lng: longitude },
-          // driverLocation: { lat: latitude, lng: longitude }, // Driver hasn't started yet
           addressDetails: addressDetails,
           status: 'pending',
           createdAt: serverTimestamp(),
@@ -441,9 +442,11 @@ export default function App() {
         }
         message += `📞 Client : +221${clientPhone.replace(/\s+/g, '')}`;
 
-        // Utilisation de location.href pour éviter le blocage des popups sur mobile
+        // Utilisation de location.href pour éviter le blocage des popups sur mobile comme conseillé
         window.location.href = `https://wa.me/${formattedDriver}?text=${encodeURIComponent(message)}`;
         setSuccess(true);
+        setShowSuccessToast(true);
+        setTimeout(() => setShowSuccessToast(false), 5000);
         setGpsStatus('idle');
       } catch (err: any) {
         setLoading(false);
@@ -593,7 +596,7 @@ export default function App() {
                 className="flex items-center gap-2.5"
               >
                 <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
-                WhatsApp ouvert avec succès !
+                Votre position a été envoyée avec succès !
               </motion.div>
               <button 
                 onClick={resetForm}
@@ -655,12 +658,38 @@ export default function App() {
                 </label>
                 <textarea 
                   placeholder="Ex: Près de la mosquée, devant le portail gris..." 
-                  rows={3} 
+                  rows={2} 
                   value={addressDetails} 
                   onChange={(e) => setAddressDetails(e.target.value)} 
                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] resize-none transition-all placeholder:text-slate-300"
                 />
               </div>
+
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  if (!clientPhone || !driverPhone) {
+                    setError('Veuillez remplir les numéros de téléphone.');
+                    return;
+                  }
+                  setShowPreShareConfirm(true);
+                }}
+                disabled={loading}
+                className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] text-white bg-slate-900 shadow-xl shadow-slate-200 flex items-center justify-center gap-3 transition-all mt-2 overflow-hidden relative group"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <Clock size={16} className="animate-spin" />
+                    En cours...
+                  </span>
+                ) : (
+                  <>
+                    <Share2 size={18} />
+                    Partager ma position
+                  </>
+                )}
+              </motion.button>
             </motion.div>
           ) : (
             <motion.div 
@@ -715,7 +744,17 @@ export default function App() {
         ) : (
           <motion.button
             whileTap={{ scale: 0.98 }}
-            onClick={activeTab === 'client' ? handleClientShare : handleDriverRequest}
+            onClick={() => {
+              if (activeTab === 'client') {
+                if (!clientPhone || !driverPhone) {
+                  setError('Veuillez remplir les numéros de téléphone.');
+                  return;
+                }
+                setShowPreShareConfirm(true);
+              } else {
+                handleDriverRequest();
+              }
+            }}
             disabled={loading}
             className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white shadow-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
               activeTab === 'client' 
@@ -835,6 +874,68 @@ export default function App() {
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center p-4 font-sans text-slate-800">
       
+      <AnimatePresence>
+        {showPreShareConfirm && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white w-full max-w-xs rounded-3xl p-8 shadow-2xl border border-slate-100 text-center"
+            >
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mx-auto mb-6">
+                <MapPin size={32} />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 mb-2">Partager ma position ?</h3>
+              <p className="text-sm text-slate-500 mb-8 leading-relaxed">
+                ALGS va récupérer votre position GPS actuelle pour l'envoyer au livreur via WhatsApp. C'est sécurisé et permet une livraison plus rapide.
+              </p>
+              <div className="space-y-3">
+                <button 
+                  onClick={() => {
+                    setShowPreShareConfirm(false);
+                    shareLocation();
+                  }}
+                  className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-100"
+                >
+                  Confirmer et Partager
+                </button>
+                <button 
+                  onClick={() => setShowPreShareConfirm(false)}
+                  className="w-full py-3 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-400"
+                >
+                  Annuler
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSuccessToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-[340px] bg-emerald-600 text-white rounded-2xl p-4 shadow-2xl z-[60] flex items-center gap-3 border border-emerald-400"
+          >
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <CheckCircle2 size={16} />
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-emerald-100">Succès</p>
+              <p className="text-xs font-bold text-white">Votre position a été envoyée !</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {showUpdateToast && (
           <motion.div

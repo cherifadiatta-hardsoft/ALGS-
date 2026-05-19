@@ -368,14 +368,9 @@ export default function App() {
     }
   };
 
-  // Nettoyage et formatage du numéro pour WhatsApp (+221)
+  // Nettoyage et formatage du numéro pour WhatsApp (Full International)
   const formatPhone = (phone: string) => {
-    let cleaned = phone.replace(/\s+/g, '');
-    if (cleaned.startsWith('7')) return `221${cleaned}`;
-    if (cleaned.startsWith('+221')) return cleaned.replace('+', '');
-    // Handle cases where user might put 00221
-    if (cleaned.startsWith('00221')) return cleaned.slice(2);
-    return cleaned;
+    return phone.replace(/\D/g, ''); // Garde uniquement les chiffres pour wa.me/XXXXXXXXXX
   };
 
   const resetForm = () => {
@@ -629,13 +624,13 @@ export default function App() {
                   <Phone size={12} /> {t.myWhatsApp}
                 </label>
                 <div className="relative group">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+</span>
                   <input 
                     type="tel" 
-                    placeholder="77 000 00 00" 
+                    placeholder="221 77 000 00 00" 
                     value={clientPhone} 
                     onChange={(e) => setClientPhone(e.target.value)} 
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-18 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all"
                   />
                 </div>
               </div>
@@ -645,13 +640,13 @@ export default function App() {
                   <Bike size={12} /> {t.driverNumber}
                 </label>
                 <div className="relative group">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+</span>
                   <input 
                     type="tel" 
-                    placeholder="76 000 00 00" 
+                    placeholder="221 76 000 00 00" 
                     value={driverPhone} 
                     onChange={(e) => setDriverPhone(e.target.value)} 
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-18 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all"
                   />
                 </div>
               </div>
@@ -720,13 +715,13 @@ export default function App() {
                   <User size={12} /> {t.clientWhatsApp}
                 </label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+221</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold border-r border-slate-200 pr-3">+</span>
                   <input 
                     type="tel" 
-                    placeholder="77 000 00 00" 
+                    placeholder="221 77 000 00 00" 
                     value={clientPhone} 
                     onChange={(e) => setClientPhone(e.target.value)} 
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-18 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 transition-all"
                   />
                 </div>
               </div>

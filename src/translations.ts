@@ -78,7 +78,7 @@ export const translations = {
       msg += `📍 Suivi ALGS en direct : ${trackingLink}\n`;
       msg += `🏍️ Cliquez ici pour lancer l'itinéraire : ${googleMapsLink}\n\n`;
       if (addressDetails.trim() !== '') msg += `🏠 Repère : ${addressDetails}\n`;
-      msg += `📞 Client : +221${clientPhone.replace(/\s+/g, '')}`;
+      msg += `📞 Client : +${clientPhone.replace(/\s+/g, '')}`;
       return msg;
     },
     driverRequestMessage: (appUrl: string) => {
@@ -162,7 +162,7 @@ export const translations = {
       msg += `📍 Live ALGS tracking: ${trackingLink}\n`;
       msg += `🏍️ Click here to start the route: ${googleMapsLink}\n\n`;
       if (addressDetails.trim() !== '') msg += `🏠 Landmark: ${addressDetails}\n`;
-      msg += `📞 Client: +221${clientPhone.replace(/\s+/g, '')}`;
+      msg += `📞 Client: +${clientPhone.replace(/\s+/g, '')}`;
       return msg;
     },
     driverRequestMessage: (appUrl: string) => {

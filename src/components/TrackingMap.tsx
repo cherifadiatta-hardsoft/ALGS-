@@ -41,6 +41,7 @@ const RouteDisplay = ({ driverLocation, clientLocation, onEtaUpdate }: {
       origin: driverLocation,
       destination: clientLocation,
       travelMode: 'DRIVING', // Livreur en moto/voiture
+      routingPreference: 'TRAFFIC_AWARE_OPTIMAL', // Optimisation basée sur le trafic en temps réel
       fields: ['path', 'durationMillis', 'distanceMeters'],
     }).then(({ routes }) => {
       if (routes?.[0]) {
